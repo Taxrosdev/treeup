@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use std::{io, path::Path};
+use stringlike::StringLike;
 
-use crate::{blob::BlobRef, object::Deployable, repo::Repo, tree::stringlike::StringLike};
+use crate::{BlobRef, Repo, object::Deployable};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct File {

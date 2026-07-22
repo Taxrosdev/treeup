@@ -5,16 +5,15 @@ use std::{
     os::unix::fs::{MetadataExt, PermissionsExt},
     path::Path,
 };
+use stringlike::StringLike;
 use tokio::fs;
 
 use crate::{
     object::{Dependencies, Deployable, Object},
     repo::Repo,
-    tree::stringlike::StringLike,
 };
 mod file;
 pub use file::File;
-pub mod stringlike;
 mod symlink;
 pub use symlink::Symlink;
 

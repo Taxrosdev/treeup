@@ -5,7 +5,7 @@ use std::{
 };
 use tokio::fs;
 
-use crate::{blob::BlobRef, downloader::DownloadKind, repo::Repo};
+use crate::{BlobRef, Repo, downloader::DownloadKind};
 
 #[async_trait]
 pub trait Deployable: Sized {

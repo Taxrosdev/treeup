@@ -1169,6 +1169,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "stringlike"
+version = "0.1.0"
+source = "git+https://github.com/Taxrosdev/StringLike.git#dfbb90b678f170089349d01648593ed33a11d5e3"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1411,6 +1419,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "stringlike",
  "thiserror",
  "tokio",
 ]

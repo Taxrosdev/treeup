@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use std::{io, os::unix::fs::MetadataExt, path::Path};
+use stringlike::StringLike;
 use tokio::fs;
 
-use crate::{object::Deployable, repo::Repo, tree::stringlike::StringLike};
+use crate::{object::Deployable, repo::Repo};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct Symlink {
