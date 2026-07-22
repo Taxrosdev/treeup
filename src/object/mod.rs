@@ -5,7 +5,7 @@ use std::{
 };
 use tokio::fs;
 
-use crate::{blob::BlobRef, repo::Repo};
+use crate::{blob::BlobRef, downloader::DownloadKind, repo::Repo};
 
 #[async_trait]
 pub trait Deployable: Sized {
@@ -37,7 +37,7 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
 
         let raw = repo
             .downloader
-            .fetch(hash)
+            .fetch(hash, DownloadKind::Object)
             .await
             .map_err(crate::error::Error::DownloaderError)?;
 
@@ -52,7 +52,7 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
     }
 
     /// Get bordering dependencies
-    fn get_dependencies(&self) -> Dependencies;
+    fn get_dependencies(&self) -> Dependencies<'_>;
 }
 
 pub struct Dependencies<'a> {

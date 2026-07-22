@@ -7,7 +7,7 @@ use std::{
 };
 use tokio::fs;
 
-use crate::{object::Deployable, repo::Repo};
+use crate::{downloader::DownloadKind, object::Deployable, repo::Repo};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct BlobRef {
@@ -34,7 +34,7 @@ impl BlobRef {
 
         let raw = repo
             .downloader
-            .fetch(&self.hash)
+            .fetch(&self.hash, DownloadKind::Blob)
             .await
             .map_err(crate::error::Error::DownloaderError)?;
 
