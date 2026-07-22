@@ -1,0 +1,17 @@
+[package]
+name = "treeup"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait = "0.1.91"
+blake3 = { version = "1.8.5", features = ["mmap", "rayon"] }
+reqwest = "0.13.4"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0.19"
+tokio = { version = "1.53.1", features = ["fs"] }
+
+[dev-dependencies]
+temp-dir = "0.2.0"
+tokio = { version = "1.53.1", features = ["macros"] }
