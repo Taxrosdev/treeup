@@ -1,6 +1,6 @@
 use std::{fs, io};
 use temp_dir::TempDir;
-use treeup::{blob::BlobRef, downloader::ReqwestDownloader, object::Deployable, repo::Repo};
+use treeup::{BlobRef, Repo, downloader::ReqwestDownloader, object::Deployable};
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
