@@ -10,7 +10,11 @@ use tokio::fs;
 
 #[cfg(all(any(feature = "mode", feature = "ownership"), unix))]
 use crate::utils::permissions::Permissions;
-use crate::{downloader::DownloadKind, object::Deployable, repo::Repo};
+use crate::{
+    downloader::{DownloadKind, Downloader},
+    object::Deployable,
+    repo::Repo,
+};
 
 /// A reference to a Blob, containing all information that may be required for deploying.
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
@@ -41,15 +45,18 @@ impl BlobRef {
     }
 
     /// Download the referenced Blob onto disk
-    pub async fn download(&self, repo: &Repo) -> crate::error::Result<()> {
+    pub async fn download(
+        &self,
+        repo: &Repo,
+        downloader: Box<dyn Downloader>,
+    ) -> crate::error::Result<()> {
         let path = Self::local_path(repo, &self.hash).await?;
 
         if fs::try_exists(&path).await? {
             return Ok(());
         }
 
-        let raw = repo
-            .downloader
+        let raw = downloader
             .fetch(&self.hash, DownloadKind::Blob)
             .await
             .map_err(crate::error::Error::DownloaderError)?;

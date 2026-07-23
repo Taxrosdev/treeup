@@ -5,7 +5,10 @@ use std::{
 };
 use tokio::fs;
 
-use crate::{BlobRef, Repo, downloader::DownloadKind};
+use crate::{
+    BlobRef, Repo,
+    downloader::{DownloadKind, Downloader},
+};
 
 #[async_trait]
 pub trait Deployable: Sized {
@@ -32,7 +35,11 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         Ok(blake3::hash(&raw).to_string())
     }
 
-    async fn download(repo: &Repo, hash: &str) -> crate::error::Result<Self> {
+    async fn download(
+        repo: &Repo,
+        downloader: Box<dyn Downloader>,
+        hash: &str,
+    ) -> crate::error::Result<Self> {
         let path = Self::local_path(repo, hash).await?;
 
         if fs::try_exists(&path).await? {
@@ -40,8 +47,7 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
             return Ok(object);
         }
 
-        let raw = repo
-            .downloader
+        let raw = downloader
             .fetch(hash, DownloadKind::Object)
             .await
             .map_err(crate::error::Error::DownloaderError)?;
