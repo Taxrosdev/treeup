@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 
+#[cfg(feature = "reqwest")]
 mod reqwest;
+#[cfg(feature = "reqwest")]
 pub use reqwest::*;
 
 #[async_trait]

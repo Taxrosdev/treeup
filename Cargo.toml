@@ -8,7 +8,7 @@ edition = "2024"
 [dependencies]
 async-trait = "0.1"
 blake3 = { version = "1.8", features = ["mmap", "rayon"] }
-reqwest = "0.13"
+reqwest = { version = "0.13", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
@@ -18,5 +18,9 @@ stringlike = { git = "https://github.com/Taxrosdev/StringLike.git", features = [
 [dev-dependencies]
 temp-dir = "0.2.0"
 tokio = { version = "^1.53", features = ["macros"] }
+
+[features]
+default = ["reqwest"]
+reqwest = ["dep:reqwest"]
 
 
