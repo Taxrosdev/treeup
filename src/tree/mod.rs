@@ -11,13 +11,18 @@ use crate::{
 };
 mod file;
 pub use file::File;
+#[cfg(not(unix))]
 mod symlink;
+#[cfg(not(unix))]
 pub use symlink::Symlink;
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct Tree {
     subtrees: Vec<SubtreeRef>,
     files: Vec<File>,
+    #[cfg(not(unix))]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     symlinks: Vec<Symlink>,
 
     #[cfg(all(feature = "mode", unix))]
@@ -56,6 +61,7 @@ impl Deployable for Tree {
 
         let mut subtrees = Vec::new();
         let mut files = Vec::new();
+        #[cfg(not(unix))]
         let mut symlinks = Vec::new();
 
         let mut read_dir = fs::read_dir(path).await?;
@@ -77,7 +83,9 @@ impl Deployable for Tree {
                         .into(),
                 })
             } else if filetype.is_symlink() {
+                #[cfg(not(unix))]
                 let symlink = Symlink::create(repo, &filepath).await?;
+                #[cfg(not(unix))]
                 symlinks.push(symlink)
             } else if filetype.is_file() {
                 let file = File::create(repo, &filepath).await?;
@@ -88,6 +96,7 @@ impl Deployable for Tree {
         let tree = Tree {
             subtrees,
             files,
+            #[cfg(not(unix))]
             symlinks,
             #[cfg(all(feature = "ownership", unix))]
             uid: permissions.uid,
@@ -126,6 +135,7 @@ impl Deployable for Tree {
         }
 
         // Symlinks
+        #[cfg(not(unix))]
         for symlink in &self.symlinks {
             symlink.deploy(repo, deploy_path).await?;
         }
