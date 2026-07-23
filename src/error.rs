@@ -3,7 +3,7 @@ pub enum Error {
     #[error("io error")]
     IoError(#[from] std::io::Error),
     #[error("downloader error")]
-    /// Guaranteed to be `reqwest::Error` with ReqwestDownloader (default).
+    /// Guaranteed to be `reqwest::Error` with `ReqwestDownloader` (default).
     DownloaderError(#[from] Box<dyn std::error::Error>),
     #[error("hash error")]
     /// Expected, Received

@@ -11,16 +11,16 @@ use crate::{
 };
 mod file;
 pub use file::File;
-#[cfg(not(unix))]
+#[cfg(unix)]
 mod symlink;
-#[cfg(not(unix))]
+#[cfg(unix)]
 pub use symlink::Symlink;
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct Tree {
     subtrees: Vec<SubtreeRef>,
     files: Vec<File>,
-    #[cfg(not(unix))]
+    #[cfg(unix)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
     symlinks: Vec<Symlink>,
@@ -61,7 +61,7 @@ impl Deployable for Tree {
 
         let mut subtrees = Vec::new();
         let mut files = Vec::new();
-        #[cfg(not(unix))]
+        #[cfg(unix)]
         let mut symlinks = Vec::new();
 
         let mut read_dir = fs::read_dir(path).await?;
@@ -81,22 +81,22 @@ impl Deployable for Tree {
                         .ok_or(io::ErrorKind::InvalidFilename)?
                         .to_os_string()
                         .into(),
-                })
+                });
             } else if filetype.is_symlink() {
-                #[cfg(not(unix))]
+                #[cfg(unix)]
                 let symlink = Symlink::create(repo, &filepath).await?;
-                #[cfg(not(unix))]
+                #[cfg(unix)]
                 symlinks.push(symlink)
             } else if filetype.is_file() {
                 let file = File::create(repo, &filepath).await?;
-                files.push(file)
+                files.push(file);
             }
         }
 
         let tree = Tree {
             subtrees,
             files,
-            #[cfg(not(unix))]
+            #[cfg(unix)]
             symlinks,
             #[cfg(all(feature = "ownership", unix))]
             uid: permissions.uid,
