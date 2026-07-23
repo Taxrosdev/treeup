@@ -6,6 +6,7 @@ mod reqwest;
 pub use reqwest::*;
 
 #[async_trait]
+/// Ulitity to Fetch from a remote `Repo`
 pub trait Downloader: Send + Sync {
     async fn fetch(
         &self,
