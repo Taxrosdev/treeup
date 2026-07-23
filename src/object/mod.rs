@@ -27,6 +27,11 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         Ok(serde_json::from_slice(&raw)?)
     }
 
+    fn hash(&self) -> serde_json::Result<String> {
+        let raw = serde_json::to_vec(self)?;
+        Ok(blake3::hash(&raw).to_string())
+    }
+
     async fn download(repo: &Repo, hash: &str) -> crate::error::Result<Self> {
         let path = Self::local_path(repo, hash).await?;
 
