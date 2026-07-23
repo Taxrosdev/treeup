@@ -135,7 +135,7 @@ impl Deployable for Tree {
         }
 
         // Symlinks
-        #[cfg(not(unix))]
+        #[cfg(unix)]
         for symlink in &self.symlinks {
             symlink.deploy(repo, deploy_path).await?;
         }
