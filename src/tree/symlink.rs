@@ -42,7 +42,7 @@ impl Deployable for Symlink {
     }
 
     async fn deploy(&self, _repo: &Repo, deploy_path: &Path) -> io::Result<()> {
-        fs::symlink(self.target.to_path_buf(), deploy_path).await?;
+        fs::symlink(self.target.to_path_buf(), deploy_path.join(&self.name)).await?;
 
         // Permissions
         let gid = match self.gid {
