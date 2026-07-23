@@ -1,3 +1,6 @@
+//! Blobs are Files stored on disks that are then hard-linked into their final location, this allows
+//! for fast and quick IO and tree creation/deploying.
+
 use async_trait::async_trait;
 use std::{
     fs::Permissions,
@@ -9,6 +12,7 @@ use tokio::fs;
 
 use crate::{downloader::DownloadKind, object::Deployable, repo::Repo};
 
+/// A reference to a Blob, containing all information that may be required for deploying.
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct BlobRef {
     hash: String,
@@ -19,12 +23,14 @@ pub struct BlobRef {
 }
 
 impl BlobRef {
+    /// Get the path on-disk of this Blob
     pub async fn local_path(repo: &Repo, hash: &str) -> io::Result<PathBuf> {
         let parent_path = repo.blobs_path.join(&hash[..2]);
         fs::create_dir_all(&parent_path).await?;
         Ok(parent_path.join(&hash[2..]))
     }
 
+    /// Download the referenced Blob onto disk
     pub async fn download(&self, repo: &Repo) -> crate::error::Result<()> {
         let path = Self::local_path(repo, &self.hash).await?;
 
