@@ -16,6 +16,7 @@ use crate::{downloader::DownloadKind, object::Deployable, repo::Repo};
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct BlobRef {
     hash: String,
+    pub size: u64,
 
     #[cfg(all(feature = "mode", unix))]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -81,6 +82,8 @@ impl Deployable for BlobRef {
 
         Ok(BlobRef {
             hash: hash.clone(),
+            size: fs::metadata(path).await?.len(),
+
             #[cfg(all(feature = "ownership", unix))]
             uid: permissions.uid,
             #[cfg(all(feature = "ownership", unix))]

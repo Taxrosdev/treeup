@@ -18,12 +18,12 @@ pub use symlink::Symlink;
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct Tree {
-    subtrees: Vec<SubtreeRef>,
-    files: Vec<File>,
+    pub subtrees: Vec<SubtreeRef>,
+    pub files: Vec<File>,
     #[cfg(unix)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
-    symlinks: Vec<Symlink>,
+    pub symlinks: Vec<Symlink>,
 
     #[cfg(all(feature = "mode", unix))]
     #[serde(skip_serializing_if = "Option::is_none")]
