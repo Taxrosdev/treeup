@@ -71,7 +71,7 @@ impl Deployable for Tree {
 
                 subtrees.push(SubtreeRef {
                     hash,
-                    name: path
+                    name: filepath
                         .file_name()
                         .ok_or(io::ErrorKind::InvalidFilename)?
                         .to_os_string()
