@@ -57,7 +57,9 @@ impl Deployable for BlobRef {
 
         let blob_path = Self::local_path(repo, &hash).await?;
 
-        fs::hard_link(path, blob_path).await?;
+        if !fs::try_exists(path).await? {
+            fs::hard_link(path, blob_path).await?;
+        }
 
         // Permissions
         let metadata = fs::metadata(path).await?;
