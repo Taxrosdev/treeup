@@ -3,13 +3,13 @@
 
 use async_trait::async_trait;
 use std::{
-    fs::Permissions,
     io,
-    os::unix::fs::{MetadataExt, PermissionsExt},
     path::{Path, PathBuf},
 };
 use tokio::fs;
 
+#[cfg(all(any(feature = "mode", feature = "ownership"), unix))]
+use crate::utils::permissions::Permissions;
 use crate::{downloader::DownloadKind, object::Deployable, repo::Repo};
 
 /// A reference to a Blob, containing all information that may be required for deploying.
@@ -17,8 +17,17 @@ use crate::{downloader::DownloadKind, object::Deployable, repo::Repo};
 pub struct BlobRef {
     hash: String,
 
-    mode: u32,
-    uid: u32,
+    #[cfg(all(feature = "mode", unix))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    mode: Option<u32>,
+    #[cfg(all(feature = "ownership", unix))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    uid: Option<u32>,
+    #[cfg(all(feature = "ownership", unix))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     gid: Option<u32>,
 }
 
@@ -67,20 +76,17 @@ impl Deployable for BlobRef {
             fs::hard_link(path, blob_path).await?;
         }
 
-        // Permissions
-        let metadata = fs::metadata(path).await?;
-        let uid = metadata.uid();
-        let gid = if uid == metadata.gid() {
-            None
-        } else {
-            Some(metadata.gid())
-        };
+        #[cfg(all(any(feature = "mode", feature = "ownership"), unix))]
+        let permissions = Permissions::get(path).await?;
 
         Ok(BlobRef {
             hash: hash.clone(),
-            uid,
-            gid,
-            mode: metadata.mode(),
+            #[cfg(all(feature = "ownership", unix))]
+            uid: permissions.uid,
+            #[cfg(all(feature = "ownership", unix))]
+            gid: permissions.gid,
+            #[cfg(all(feature = "mode", unix))]
+            mode: permissions.mode,
         })
     }
 
@@ -88,14 +94,10 @@ impl Deployable for BlobRef {
         let path = Self::local_path(repo, &self.hash).await?;
         fs::hard_link(path, deploy_path).await?;
 
-        // Permissions
-        let gid = match self.gid {
-            Some(gid) => gid,
-            None => self.uid,
-        };
-        std::os::unix::fs::chown(deploy_path, Some(self.uid), Some(gid))?;
-        let permissions = Permissions::from_mode(self.mode);
-        fs::set_permissions(deploy_path, permissions).await?;
+        #[cfg(all(feature = "mode", unix))]
+        Permissions::deploy_mode(deploy_path, self.mode).await?;
+        #[cfg(all(feature = "ownership", unix))]
+        Permissions::deploy_ownership(deploy_path, self.uid, self.gid).await?;
 
         Ok(())
     }

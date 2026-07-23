@@ -1,13 +1,10 @@
 use async_trait::async_trait;
-use std::{
-    fs::Permissions,
-    io,
-    os::unix::fs::{MetadataExt, PermissionsExt},
-    path::Path,
-};
+use std::{io, path::Path};
 use stringlike::StringLike;
 use tokio::fs;
 
+#[cfg(all(any(feature = "mode", feature = "ownership"), unix))]
+use crate::utils::permissions::Permissions;
 use crate::{
     object::{Dependencies, Deployable, Object},
     repo::Repo,
@@ -23,8 +20,17 @@ pub struct Tree {
     files: Vec<File>,
     symlinks: Vec<Symlink>,
 
-    mode: u32,
-    uid: u32,
+    #[cfg(all(feature = "mode", unix))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    mode: Option<u32>,
+    #[cfg(all(feature = "ownership", unix))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    uid: Option<u32>,
+    #[cfg(all(feature = "ownership", unix))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     gid: Option<u32>,
 }
 
@@ -45,15 +51,8 @@ impl Object for Tree {
 #[async_trait]
 impl Deployable for Tree {
     async fn create(repo: &Repo, path: &Path) -> io::Result<Self> {
-        let metadata = fs::metadata(path).await?;
-
-        // Permissions
-        let uid = metadata.uid();
-        let gid = if uid == metadata.gid() {
-            None
-        } else {
-            Some(metadata.gid())
-        };
+        #[cfg(all(any(feature = "mode", feature = "ownership"), unix))]
+        let permissions = Permissions::get(path).await?;
 
         let mut subtrees = Vec::new();
         let mut files = Vec::new();
@@ -90,9 +89,12 @@ impl Deployable for Tree {
             subtrees,
             files,
             symlinks,
-            uid,
-            gid,
-            mode: metadata.mode(),
+            #[cfg(all(feature = "ownership", unix))]
+            uid: permissions.uid,
+            #[cfg(all(feature = "ownership", unix))]
+            gid: permissions.gid,
+            #[cfg(all(feature = "mode", unix))]
+            mode: permissions.mode,
         };
 
         let raw = serde_json::to_vec(&tree)?;
@@ -106,14 +108,10 @@ impl Deployable for Tree {
     async fn deploy(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()> {
         fs::create_dir_all(deploy_path).await?;
 
-        // Permissions
-        let gid = match self.gid {
-            Some(gid) => gid,
-            None => self.uid,
-        };
-        std::os::unix::fs::lchown(deploy_path, Some(self.uid), Some(gid))?;
-        let permissions = Permissions::from_mode(self.mode);
-        fs::set_permissions(deploy_path, permissions).await?;
+        #[cfg(all(feature = "mode", unix))]
+        Permissions::deploy_mode(deploy_path, self.mode).await?;
+        #[cfg(all(feature = "ownership", unix))]
+        Permissions::deploy_ownership(deploy_path, self.uid, self.gid).await?;
 
         // Subtrees
         for subtree in &self.subtrees {

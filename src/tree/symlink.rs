@@ -1,8 +1,10 @@
 use async_trait::async_trait;
-use std::{io, os::unix::fs::MetadataExt, path::Path};
+use std::{io, path::Path};
 use stringlike::StringLike;
 use tokio::fs;
 
+#[cfg(all(feature = "ownership", unix))]
+use crate::utils::permissions::Permissions;
 use crate::{object::Deployable, repo::Repo};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
@@ -10,7 +12,13 @@ pub struct Symlink {
     pub name: StringLike,
     pub target: StringLike,
 
-    uid: u32,
+    #[cfg(all(feature = "ownership", unix))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    uid: Option<u32>,
+    #[cfg(all(feature = "ownership", unix))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     gid: Option<u32>,
 }
 
@@ -18,15 +26,9 @@ pub struct Symlink {
 impl Deployable for Symlink {
     async fn create(_repo: &Repo, path: &Path) -> io::Result<Self> {
         let target = fs::read_link(path).await?.as_os_str().to_os_string().into();
-        let metadata = fs::symlink_metadata(path).await?;
 
-        // Permissions
-        let uid = metadata.uid();
-        let gid = if uid == metadata.gid() {
-            None
-        } else {
-            Some(metadata.gid())
-        };
+        #[cfg(all(feature = "ownership", unix))]
+        let permissions = Permissions::get(path).await?;
 
         Ok(Symlink {
             name: path
@@ -36,8 +38,10 @@ impl Deployable for Symlink {
                 .into(),
             target,
 
-            uid,
-            gid,
+            #[cfg(all(feature = "ownership", unix))]
+            uid: permissions.uid,
+            #[cfg(all(feature = "ownership", unix))]
+            gid: permissions.gid,
         })
     }
 
@@ -45,12 +49,8 @@ impl Deployable for Symlink {
         let deploy_path = deploy_parent_path.join(&self.name);
         fs::symlink(self.target.to_path_buf(), &deploy_path).await?;
 
-        // Permissions
-        let gid = match self.gid {
-            Some(gid) => gid,
-            None => self.uid,
-        };
-        std::os::unix::fs::lchown(deploy_path, Some(self.uid), Some(gid))?;
+        #[cfg(all(feature = "ownership", unix))]
+        Permissions::deploy_ownership(deploy_path, self.uid, self.gid).await?;
 
         Ok(())
     }
