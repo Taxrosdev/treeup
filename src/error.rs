@@ -4,7 +4,7 @@ pub enum Error {
     IoError(#[from] std::io::Error),
     #[error("downloader error")]
     /// Guaranteed to be `reqwest::Error` with `ReqwestDownloader` (default).
-    DownloaderError(#[from] Box<dyn std::error::Error>),
+    DownloaderError(#[from] Box<dyn std::error::Error + Send + Sync>),
     #[error("hash error")]
     /// Expected, Received
     HashError(String, String),

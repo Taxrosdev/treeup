@@ -12,7 +12,7 @@ pub trait Downloader: Send + Sync {
         &self,
         hash: &str,
         kind: DownloadKind,
-    ) -> Result<Vec<u8>, Box<dyn std::error::Error>>;
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>>;
 }
 
 #[derive(Copy, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

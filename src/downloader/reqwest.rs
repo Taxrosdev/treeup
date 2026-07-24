@@ -14,7 +14,7 @@ impl Downloader for ReqwestDownloader {
         &self,
         hash: &str,
         kind: DownloadKind,
-    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
         let base_url = match kind {
             DownloadKind::Object => &self.objects_base_url,
             DownloadKind::Blob => &self.blobs_base_url,
