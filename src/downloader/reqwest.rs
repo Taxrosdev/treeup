@@ -2,6 +2,7 @@ use async_trait::async_trait;
 
 use super::{DownloadKind, Downloader};
 
+#[derive(Clone)]
 pub struct ReqwestDownloader {
     client: reqwest::Client,
     objects_base_url: String,
