@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::{io, path::Path};
 use tokio::fs;
 
@@ -58,7 +59,7 @@ impl Deployable for Tree {
             let filepath = entry.path();
 
             if filetype.is_dir() {
-                let subtree = Tree::create(repo, &filepath).await?;
+                let subtree = Box::pin(Tree::create(repo, &filepath)).await?;
                 let raw = serde_json::to_string(&subtree)?;
                 let hash = blake3::hash(raw.as_bytes()).to_string();
 
@@ -96,22 +97,14 @@ impl Deployable for Tree {
         Ok(tree)
     }
 
+    /// Will NOT deploy subdirectories. To get all subtrees, use `Tree::get_subtrees`
+    ///
+    /// A helper method `Tree::deploy_recursive` is available.
     async fn deploy(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()> {
         fs::create_dir_all(deploy_path).await?;
         Permissions::deploy(deploy_path.to_path_buf(), self.mode, self.uid, self.gid).await?;
 
         let mut tasks = Vec::new();
-
-        // Subtrees
-        for subtree in &self.subtrees {
-            let path = deploy_path.join(subtree.name.to_path_buf());
-            let repo = repo.clone();
-            let hash = subtree.hash.clone();
-            tasks.push(tokio::spawn(async move {
-                let tree = Tree::get(&repo, &hash).await?;
-                tree.deploy(&repo, &path).await
-            }));
-        }
 
         // Files
         for file in &self.files {
@@ -135,6 +128,41 @@ impl Deployable for Tree {
 
         for task in tasks {
             task.await.expect("tokio join error on deploy")?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Tree {
+    /// Will include self and (recursively) all decendants.
+    /// It's guarrenteed that the parent will be ordered first before the children.
+    pub async fn get_subtrees(&self, repo: &Repo) -> io::Result<Vec<(PathBuf, Tree)>> {
+        let mut out = Vec::new();
+        self.collect_subtrees(repo, PathBuf::from(""), &mut out)
+            .await?;
+        Ok(out)
+    }
+
+    async fn collect_subtrees(
+        &self,
+        repo: &Repo,
+        path: PathBuf,
+        out: &mut Vec<(PathBuf, Tree)>,
+    ) -> io::Result<()> {
+        out.push((path.clone(), self.clone()));
+        for subtree in &self.subtrees {
+            let child_path = path.join(subtree.name.to_path_buf());
+            let tree = Tree::get(repo, &subtree.hash).await?;
+            Box::pin(tree.collect_subtrees(repo, child_path, out)).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn deploy_recursive(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()> {
+        for (sub_deploy_path, tree) in self.get_subtrees(repo).await? {
+            let deploy_path = deploy_path.join(sub_deploy_path);
+            tree.deploy(repo, &deploy_path).await?;
         }
 
         Ok(())
