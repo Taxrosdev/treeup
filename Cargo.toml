@@ -5,14 +5,18 @@ authors = ["Taxrosdev"]
 version = "0.1.0"
 edition = "2024"
 
+[dependencies]
+blake3 = { version = "^1.8", features = ["rayon", "mmap"] }
+bytes = "^1.12"
+futures-core = "0.3"
+nix = { version = "^0.31", features = ["fs"] }
+reqwest = { version = "^0.13", features = ["stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+snafu = "0.9"
+tokio = { version = "1", features = ["fs"] }
+tokio-stream = "0.1"
+
 [dev-dependencies]
 temp-dir = "0.2.0"
-tokio = { version = "1.0", features = ["macros"] }
-
-[dependencies]
-blake3 = "1.8.6"
-reqwest = "0.13.4"
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.151"
-snafu = "0.9.2"
-tokio = "1.0"
+tokio = { version = "1", features = ["macros"] }

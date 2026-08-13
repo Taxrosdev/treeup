@@ -1,8 +1,6 @@
-use async_trait::async_trait;
 use std::{io, path::Path};
-use utils::StringLike;
 
-use crate::{BlobRef, Repo, object::Deployable};
+use crate::{Repo, blob::BlobRef, object::Deployable, utils::stringlike::StringLike};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct File {
@@ -10,7 +8,6 @@ pub struct File {
     pub blob: BlobRef,
 }
 
-#[async_trait]
 impl Deployable for File {
     async fn create(repo: &Repo, path: &Path) -> io::Result<Self> {
         Ok(File {

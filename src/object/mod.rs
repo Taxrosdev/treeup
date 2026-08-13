@@ -1,4 +1,6 @@
-use async_trait::async_trait;
+pub mod error;
+
+use snafu::ResultExt;
 use std::{
     io::{self, Write},
     path::{Path, PathBuf},
@@ -9,20 +11,21 @@ use tokio::{
     io::AsyncWriteExt,
 };
 use tokio_stream::StreamExt;
-use utils::atomic_rename;
 
 use crate::{
-    BlobRef, Repo,
+    Repo,
+    blob::BlobRef,
     downloader::{DownloadKind, Downloader},
+    object::error::{DownloaderSnafu, Error},
+    utils::atomic::atomic_rename,
 };
+use error::Result;
 
-#[async_trait]
 pub trait Deployable: Sized {
     async fn create(repo: &Repo, path: &Path) -> io::Result<Self>;
     async fn deploy(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()>;
 }
 
-#[async_trait]
 pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
     #[must_use]
     async fn local_path_with_parent(repo: &Repo, hash: &str) -> io::Result<PathBuf> {
@@ -75,11 +78,7 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         Ok(true)
     }
 
-    async fn download(
-        repo: &Repo,
-        downloader: Arc<dyn Downloader>,
-        hash: &str,
-    ) -> crate::error::Result<()> {
+    async fn download(repo: &Repo, downloader: Arc<impl Downloader>, hash: &str) -> Result<()> {
         let path = Self::local_path_with_parent(repo, hash).await?;
         let tmp_path = path.with_extension("tmp");
         let mut tmp_file = File::create(&tmp_path).await?;
@@ -87,12 +86,12 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         let stream = downloader
             .fetch(hash, DownloadKind::Object)
             .await
-            .map_err(crate::error::Error::DownloaderError)?;
+            .context(DownloaderSnafu)?;
         let mut stream = Box::pin(stream);
 
         let mut hasher = blake3::Hasher::new();
         while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(crate::error::Error::DownloaderError)?;
+            let chunk = chunk.context(DownloaderSnafu)?;
             hasher.write_all(&chunk)?;
             tmp_file.write_all(&chunk).await?;
         }
@@ -102,7 +101,10 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         let calc_hash = hasher.finalize().to_hex().to_string();
         if hash != calc_hash {
             fs::remove_file(tmp_path).await?;
-            return Err(crate::Error::HashError(hash.to_string(), calc_hash));
+            return Err(Error::HashError {
+                expected: hash.to_string(),
+                received: calc_hash,
+            });
         }
 
         atomic_rename(tmp_path, path).await?;

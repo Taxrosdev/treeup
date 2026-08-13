@@ -1,7 +1,9 @@
 //! Blobs are Files stored on disks that are then hard-linked into their final location, this allows
 //! for fast and quick IO and tree creation/deploying.
 
-use async_trait::async_trait;
+pub mod error;
+
+use snafu::ResultExt;
 use std::{
     io::{self, Write},
     path::{Path, PathBuf},
@@ -12,14 +14,17 @@ use tokio::{
     io::AsyncWriteExt,
 };
 use tokio_stream::StreamExt;
-use utils::atomic_rename;
 
-use crate::utils::permissions::Permissions;
+use crate::{
+    blob::error::Error,
+    utils::{atomic::atomic_rename, permissions::Permissions},
+};
 use crate::{
     downloader::{DownloadKind, Downloader},
     object::Deployable,
     repo::Repo,
 };
+use error::{DownloaderSnafu, IoSnafu, Result};
 
 /// A reference to a Blob, containing all information that may be required for deploying.
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
@@ -62,24 +67,20 @@ impl BlobRef {
     }
 
     /// Download the referenced Blob onto disk
-    pub async fn download(
-        &self,
-        repo: &Repo,
-        downloader: Arc<dyn Downloader>,
-    ) -> crate::error::Result<()> {
-        let path = self.local_path_with_parent(repo).await?;
+    pub async fn download(&self, repo: &Repo, downloader: Arc<impl Downloader>) -> Result<()> {
+        let path = self.local_path_with_parent(repo).await.context(IoSnafu)?;
         let tmp_path = path.with_extension("tmp");
         let mut tmp_file = File::create(&tmp_path).await?;
 
         let stream = downloader
             .fetch(&self.hash, DownloadKind::Blob)
             .await
-            .map_err(crate::error::Error::DownloaderError)?;
+            .context(DownloaderSnafu)?;
         let mut stream = Box::pin(stream);
 
         let mut hasher = blake3::Hasher::new();
         while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(crate::error::Error::DownloaderError)?;
+            let chunk = chunk.context(DownloaderSnafu)?;
             hasher.write_all(&chunk)?;
             tmp_file.write_all(&chunk).await?;
         }
@@ -89,7 +90,10 @@ impl BlobRef {
         let calc_hash = hasher.finalize().to_hex().to_string();
         if self.hash != calc_hash {
             fs::remove_file(tmp_path).await?;
-            return Err(crate::Error::HashError(self.hash.clone(), calc_hash));
+            return Err(Error::HashError {
+                expected: self.hash.clone(),
+                received: calc_hash,
+            });
         }
 
         atomic_rename(tmp_path, path).await?;
@@ -118,7 +122,6 @@ impl BlobRef {
     }
 }
 
-#[async_trait]
 impl Deployable for BlobRef {
     async fn create(repo: &Repo, path: &Path) -> io::Result<Self> {
         let mut hasher = blake3::Hasher::new();

@@ -1,9 +1,8 @@
-use async_trait::async_trait;
 use std::{io, path::Path};
 use tokio::fs;
-use utils::StringLike;
 
 use crate::utils::permissions::Permissions;
+use crate::utils::stringlike::StringLike;
 use crate::{
     object::{Dependencies, Deployable, Object},
     repo::Repo,
@@ -32,7 +31,6 @@ pub struct Tree {
     gid: Option<u32>,
 }
 
-#[async_trait]
 impl Object for Tree {
     fn get_dependencies(&self) -> Dependencies<'_> {
         Dependencies {
@@ -46,7 +44,6 @@ impl Object for Tree {
     }
 }
 
-#[async_trait]
 impl Deployable for Tree {
     async fn create(repo: &Repo, path: &Path) -> io::Result<Self> {
         let permissions = Permissions::get(path).await?;

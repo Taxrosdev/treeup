@@ -1,11 +1,10 @@
-use async_trait::async_trait;
 use bytes::Bytes;
 use futures_core::Stream;
 use std::pin::Pin;
 use tokio_stream::StreamExt;
-use utils::EndsWithSlash;
 
 use super::{DownloadKind, Downloader};
+use crate::downloader::DownloadError;
 
 #[derive(Clone)]
 pub struct ReqwestDownloader {
@@ -15,16 +14,13 @@ pub struct ReqwestDownloader {
     pub(crate) remote: String,
 }
 
-#[async_trait]
 impl Downloader for ReqwestDownloader {
     async fn fetch(
         &self,
         hash: &str,
         kind: DownloadKind,
-    ) -> Result<
-        Pin<Box<dyn Stream<Item = Result<Bytes, Box<dyn std::error::Error + Send + Sync>>> + Send>>,
-        Box<dyn std::error::Error + Send + Sync>,
-    > {
+    ) -> Result<Pin<Box<impl Stream<Item = Result<Bytes, DownloadError>> + Send>>, DownloadError>
+    {
         let base_url = match kind {
             DownloadKind::Object => &self.objects_base_url,
             DownloadKind::Blob => &self.blobs_base_url,
@@ -43,14 +39,14 @@ impl Downloader for ReqwestDownloader {
         })))
     }
 
-    async fn get_remote(&self) -> String {
+    fn remote(&self) -> String {
         self.remote.clone()
     }
 }
 
 impl ReqwestDownloader {
     #[must_use]
-    pub fn new(objects_base_url: &str, blobs_base_url: &str, remote: EndsWithSlash) -> Self {
+    pub fn new(objects_base_url: &str, blobs_base_url: &str, remote: String) -> Self {
         let objects_base_url = objects_base_url.trim_end_matches('/');
         let blobs_base_url = blobs_base_url.trim_end_matches('/');
 

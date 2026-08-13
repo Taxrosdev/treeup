@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use bytes::Bytes;
 use futures_core::Stream;
 use std::{
@@ -10,7 +9,7 @@ use std::{
 };
 use tokio_stream::StreamExt;
 
-use crate::downloader::{DownloadKind, Downloader, ReqwestDownloader};
+use crate::downloader::{DownloadError, DownloadKind, Downloader, ReqwestDownloader};
 
 #[derive(Clone)]
 pub struct ProgressDownloader {
@@ -31,16 +30,12 @@ impl ProgressDownloader {
     }
 }
 
-#[async_trait]
 impl Downloader for ProgressDownloader {
     async fn fetch(
         &self,
         hash: &str,
         kind: DownloadKind,
-    ) -> Result<
-        Pin<Box<dyn Stream<Item = Result<Bytes, Box<dyn std::error::Error + Send + Sync>>> + Send>>,
-        Box<dyn std::error::Error + Send + Sync>,
-    > {
+    ) -> Result<Pin<Box<impl Stream<Item = Result<Bytes, DownloadError>>>>, DownloadError> {
         let stream = self.reqwest.fetch(hash, kind).await?;
         let downloaded = self.downloaded.clone();
 
@@ -51,7 +46,7 @@ impl Downloader for ProgressDownloader {
         })))
     }
 
-    async fn get_remote(&self) -> String {
-        self.reqwest.get_remote().await
+    fn remote(&self) -> String {
+        self.reqwest.remote()
     }
 }

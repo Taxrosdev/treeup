@@ -1,9 +1,8 @@
-use async_trait::async_trait;
 use std::{io, path::Path};
 use tokio::fs;
-use utils::StringLike;
 
 use crate::utils::permissions::Permissions;
+use crate::utils::stringlike::StringLike;
 use crate::{object::Deployable, repo::Repo};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
@@ -19,7 +18,6 @@ pub struct Symlink {
     gid: Option<u32>,
 }
 
-#[async_trait]
 impl Deployable for Symlink {
     async fn create(_repo: &Repo, path: &Path) -> io::Result<Self> {
         let target = fs::read_link(path).await?.as_os_str().to_os_string().into();
