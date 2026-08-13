@@ -1471,6 +1471,15 @@ dependencies = [
  "temp-dir",
  "tokio",
  "tokio-stream",
+ "treeup-core",
+]
+
+[[package]]
+name = "treeup-core"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "futures-core",
 ]
 
 [[package]]

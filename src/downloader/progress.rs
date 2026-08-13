@@ -8,8 +8,9 @@ use std::{
     },
 };
 use tokio_stream::StreamExt;
+use treeup_core::downloader::{DownloadError, DownloadKind, Downloader};
 
-use crate::downloader::{DownloadError, DownloadKind, Downloader, ReqwestDownloader};
+use crate::downloader::ReqwestDownloader;
 
 #[derive(Clone)]
 pub struct ProgressDownloader {

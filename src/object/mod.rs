@@ -11,11 +11,11 @@ use tokio::{
     io::AsyncWriteExt,
 };
 use tokio_stream::StreamExt;
+use treeup_core::downloader::{DownloadKind, Downloader};
 
 use crate::{
     Repo,
     blob::BlobRef,
-    downloader::{DownloadKind, Downloader},
     object::error::{DownloaderSnafu, Error},
     utils::atomic::atomic_rename,
 };

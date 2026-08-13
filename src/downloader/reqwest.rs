@@ -2,9 +2,7 @@ use bytes::Bytes;
 use futures_core::Stream;
 use std::pin::Pin;
 use tokio_stream::StreamExt;
-
-use super::{DownloadKind, Downloader};
-use crate::downloader::DownloadError;
+use treeup_core::downloader::{DownloadError, DownloadKind, Downloader};
 
 #[derive(Clone)]
 pub struct ReqwestDownloader {

@@ -1,4 +1,4 @@
-use crate::downloader::DownloadError;
+use treeup_core::downloader::DownloadError;
 
 #[derive(snafu::Snafu, Debug)]
 #[snafu(visibility(pub(crate)))]

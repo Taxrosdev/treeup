@@ -14,16 +14,13 @@ use tokio::{
     io::AsyncWriteExt,
 };
 use tokio_stream::StreamExt;
+use treeup_core::downloader::{DownloadKind, Downloader};
 
 use crate::{
     blob::error::Error,
     utils::{atomic::atomic_rename, permissions::Permissions},
 };
-use crate::{
-    downloader::{DownloadKind, Downloader},
-    object::Deployable,
-    repo::Repo,
-};
+use crate::{object::Deployable, repo::Repo};
 use error::{DownloaderSnafu, IoSnafu, Result};
 
 /// A reference to a Blob, containing all information that may be required for deploying.

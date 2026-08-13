@@ -1,0 +1,10 @@
+[package]
+name = "treeup-core"
+version = "0.1.0"
+license.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes = "1"
+futures-core = "0.3"
