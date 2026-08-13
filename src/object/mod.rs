@@ -83,11 +83,10 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         let tmp_path = path.with_extension("tmp");
         let mut tmp_file = File::create(&tmp_path).await?;
 
-        let stream = downloader
+        let mut stream = downloader
             .fetch(hash, DownloadKind::Object)
             .await
             .context(DownloaderSnafu)?;
-        let mut stream = Box::pin(stream);
 
         let mut hasher = blake3::Hasher::new();
         while let Some(chunk) = stream.next().await {
