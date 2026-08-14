@@ -60,6 +60,7 @@ impl Deployable for Tree {
 
             if filetype.is_dir() {
                 let subtree = Box::pin(Tree::create(repo, &filepath)).await?;
+
                 let raw = serde_json::to_string(&subtree)?;
                 let hash = blake3::hash(raw.as_bytes()).to_string();
 

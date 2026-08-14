@@ -1,3 +1,4 @@
+pub mod cas;
 pub mod error;
 
 use snafu::ResultExt;
@@ -22,8 +23,12 @@ use crate::{
 use error::Result;
 
 pub trait Deployable: Sized {
-    async fn create(repo: &Repo, path: &Path) -> io::Result<Self>;
-    async fn deploy(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()>;
+    fn create(repo: &Repo, path: &Path) -> impl Future<Output = io::Result<Self>>;
+    fn deploy(
+        &self,
+        repo: &Repo,
+        deploy_path: &Path,
+    ) -> impl Future<Output = io::Result<()>> + Send + Sync;
 }
 
 pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
@@ -51,10 +56,12 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         Ok(blake3::hash(raw.as_bytes()).to_string())
     }
 
-    async fn exists(repo: &Repo, hash: &str) -> io::Result<bool> {
-        let path = Self::local_path(repo, hash);
+    fn exists(repo: &Repo, hash: &str) -> impl Future<Output = io::Result<bool>> + Send {
+        async move {
+            let path = Self::local_path(repo, hash);
 
-        Ok(fs::try_exists(&path).await?)
+            fs::try_exists(&path).await
+        }
     }
 
     /// Tries to clone an `Object` from `old_repo` to `new_repo`.
