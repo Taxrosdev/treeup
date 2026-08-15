@@ -1470,6 +1470,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "hex",
+ "memmap2",
  "nix",
  "reqwest",
  "serde",
