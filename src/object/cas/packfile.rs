@@ -135,6 +135,14 @@ impl ObjectCAS for PackfileCAS {
         }
     }
 
+    async fn exists(&self, hash: &[u8]) -> io::Result<bool> {
+        let packfile = &self.packfiles[&hash[0]];
+        match packfile.index.read().await.get(&hash[1..]) {
+            Some(_) => Ok(true),
+            None => fs::try_exists(self.path(hash)).await,
+        }
+    }
+
     async fn put(&self, hash: &[u8], data: &str) -> io::Result<()> {
         if data.len() < MAX_PACKFILE_INSERT {
             let packfile = &self.packfiles[&hash[0]];

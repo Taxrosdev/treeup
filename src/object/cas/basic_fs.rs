@@ -37,6 +37,10 @@ impl ObjectCAS for BasicFS {
         fs::read_to_string(self.path(hash)).await
     }
 
+    async fn exists(&self, hash: &[u8]) -> io::Result<bool> {
+        fs::try_exists(self.path(hash)).await
+    }
+
     async fn put(&self, hash: &[u8], data: &str) -> io::Result<()> {
         let path = self.path(hash);
 
