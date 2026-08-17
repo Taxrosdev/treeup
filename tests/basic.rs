@@ -7,7 +7,7 @@ use treeup::{
 };
 
 #[tokio::test]
-async fn test() -> Result<(), Box<dyn std::error::Error>> {
+async fn basic() -> Result<(), Box<dyn std::error::Error>> {
     let tmp = TempDir::new().unwrap();
     let objects_path = tmp.path().join("objects");
     let blobs_path = tmp.path().join("blobs");
