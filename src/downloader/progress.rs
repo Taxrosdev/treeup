@@ -10,34 +10,29 @@ use std::{
 use tokio_stream::StreamExt;
 use treeup_core::downloader::{DownloadError, DownloadKind, Downloader};
 
-use crate::downloader::ReqwestDownloader;
-
 #[derive(Clone)]
-pub struct ProgressDownloader {
-    reqwest: Arc<ReqwestDownloader>,
+pub struct ProgressDownloader<D: Downloader> {
+    downloader: Arc<D>,
     downloaded: Arc<AtomicU64>,
 }
 
-impl ProgressDownloader {
+impl<D: Downloader> ProgressDownloader<D> {
     #[must_use]
-    pub fn from_reqwest_downloader(
-        reqwest: Arc<ReqwestDownloader>,
-        downloaded: Arc<AtomicU64>,
-    ) -> Self {
+    pub fn from_downloader(downloader: Arc<D>, downloaded: Arc<AtomicU64>) -> Self {
         Self {
-            reqwest,
+            downloader,
             downloaded,
         }
     }
 }
 
-impl Downloader for ProgressDownloader {
+impl<D: Downloader> Downloader for ProgressDownloader<D> {
     async fn fetch(
         &self,
-        hash: &str,
+        hash: &[u8],
         kind: DownloadKind,
     ) -> Result<Pin<Box<impl Stream<Item = Result<Bytes, DownloadError>>>>, DownloadError> {
-        let stream = self.reqwest.fetch(hash, kind).await?;
+        let stream = self.downloader.fetch(hash, kind).await?;
         let downloaded = self.downloaded.clone();
 
         Ok(Box::pin(stream.map(move |r| {
@@ -48,6 +43,6 @@ impl Downloader for ProgressDownloader {
     }
 
     fn remote(&self) -> String {
-        self.reqwest.remote()
+        self.downloader.remote()
     }
 }
