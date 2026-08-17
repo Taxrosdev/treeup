@@ -3,7 +3,7 @@ use temp_dir::TempDir;
 use tokio::fs;
 use treeup::{
     Repo, Tree,
-    object::{Deployable, Object, cas::basic_fs::BasicFS},
+    object::{Deployable, Object, cas::BasicFS},
 };
 
 #[tokio::test]

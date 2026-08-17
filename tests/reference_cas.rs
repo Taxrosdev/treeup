@@ -1,10 +1,9 @@
 //! Test reference implementations of `ObjectCAS`
 
 use std::io;
-
 use temp_dir::TempDir;
 use treeup::object::{
-    cas::{basic_fs::BasicFS, packfile::PackfileCAS},
+    cas::{BasicFS, PackfileCAS},
     error::Result,
 };
 use treeup_core::object_cas::ObjectCAS;
