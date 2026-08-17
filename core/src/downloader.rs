@@ -8,7 +8,7 @@ pub type DownloadError = Box<dyn std::error::Error + Send + Sync>;
 pub trait Downloader: Send + Sync {
     fn fetch(
         &self,
-        hash: &str,
+        hash: &[u8],
         kind: DownloadKind,
     ) -> impl Future<
         Output = Result<

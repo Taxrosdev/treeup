@@ -4,6 +4,7 @@ use std::pin::Pin;
 use tokio_stream::StreamExt;
 use treeup_core::downloader::{DownloadError, DownloadKind, Downloader};
 
+/// Works for default `BasicFS`-like `ObjectCAS` Implementations
 #[derive(Clone)]
 pub struct ReqwestDownloader {
     pub(crate) client: reqwest::Client,
@@ -15,10 +16,11 @@ pub struct ReqwestDownloader {
 impl Downloader for ReqwestDownloader {
     async fn fetch(
         &self,
-        hash: &str,
+        hash: &[u8],
         kind: DownloadKind,
     ) -> Result<Pin<Box<impl Stream<Item = Result<Bytes, DownloadError>> + Send>>, DownloadError>
     {
+        let hash_str = hex::encode(hash);
         let base_url = match kind {
             DownloadKind::Object => &self.objects_base_url,
             DownloadKind::Blob => &self.blobs_base_url,
@@ -26,7 +28,12 @@ impl Downloader for ReqwestDownloader {
 
         let res = self
             .client
-            .get(format!("{}/{}/{}", base_url, &hash[..2], &hash[2..]))
+            .get(format!(
+                "{}/{}/{}",
+                base_url,
+                &hash_str[..2],
+                &hash_str[2..]
+            ))
             .send()
             .await?;
 
