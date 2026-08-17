@@ -1,9 +1,11 @@
+use std::sync::Arc;
 use std::{io, path::Path};
 use tokio::fs;
+use treeup_core::object_cas::ObjectCAS;
 
+use crate::object::Deployable;
 use crate::utils::permissions::Permissions;
 use crate::utils::stringlike::StringLike;
-use crate::{object::Deployable, repo::Repo};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct Symlink {
@@ -19,7 +21,11 @@ pub struct Symlink {
 }
 
 impl Deployable for Symlink {
-    async fn create(_repo: &Repo, path: &Path) -> io::Result<Self> {
+    async fn create<C: ObjectCAS>(
+        _cas: Arc<C>,
+        _blobs_path: &Path,
+        path: &Path,
+    ) -> io::Result<Self> {
         let target = fs::read_link(path).await?.as_os_str().to_os_string().into();
         let permissions = Permissions::get(path).await?;
 
@@ -36,7 +42,12 @@ impl Deployable for Symlink {
         })
     }
 
-    async fn deploy(&self, _repo: &Repo, deploy_parent_path: &Path) -> io::Result<()> {
+    async fn deploy<C: ObjectCAS>(
+        &self,
+        _cas: Arc<C>,
+        _blobs_path: &Path,
+        deploy_parent_path: &Path,
+    ) -> io::Result<()> {
         let deploy_path = deploy_parent_path.join(&self.name);
         fs::symlink(self.target.to_path_buf(), &deploy_path).await?;
 

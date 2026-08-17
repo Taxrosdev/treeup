@@ -1,13 +1,10 @@
-use std::path::PathBuf;
-use std::{io, path::Path};
+use std::{io, path::Path, path::PathBuf, sync::Arc};
 use tokio::fs;
+use treeup_core::object_cas::ObjectCAS;
 
+use crate::object::{Dependencies, Deployable, Object};
 use crate::utils::permissions::Permissions;
 use crate::utils::stringlike::StringLike;
-use crate::{
-    object::{Dependencies, Deployable, Object},
-    repo::Repo,
-};
 mod file;
 pub use file::File;
 mod symlink;
@@ -46,7 +43,7 @@ impl Object for Tree {
 }
 
 impl Deployable for Tree {
-    async fn create(repo: &Repo, path: &Path) -> io::Result<Self> {
+    async fn create<C: ObjectCAS>(cas: Arc<C>, blobs_path: &Path, path: &Path) -> io::Result<Self> {
         let permissions = Permissions::get(path).await?;
 
         let mut subtrees = Vec::new();
@@ -59,7 +56,7 @@ impl Deployable for Tree {
             let filepath = entry.path();
 
             if filetype.is_dir() {
-                let subtree = Box::pin(Tree::create(repo, &filepath)).await?;
+                let subtree = Box::pin(Tree::create(cas.clone(), blobs_path, &filepath)).await?;
 
                 let raw = serde_json::to_string(&subtree)?;
                 let hash = blake3::hash(raw.as_bytes()).to_string();
@@ -73,10 +70,10 @@ impl Deployable for Tree {
                         .into(),
                 });
             } else if filetype.is_symlink() {
-                let symlink = Symlink::create(repo, &filepath).await?;
+                let symlink = Symlink::create(cas.clone(), blobs_path, &filepath).await?;
                 symlinks.push(symlink);
             } else if filetype.is_file() {
-                let file = File::create(repo, &filepath).await?;
+                let file = File::create(cas.clone(), blobs_path, &filepath).await?;
                 files.push(file);
             }
         }
@@ -91,9 +88,8 @@ impl Deployable for Tree {
         };
 
         let raw = serde_json::to_string(&tree)?;
-        let hash = blake3::hash(raw.as_bytes()).to_string();
-        let object_path = Self::local_path_with_parent(repo, &hash).await?;
-        fs::write(object_path, raw).await?;
+        let hash = blake3::hash(raw.as_bytes());
+        cas.put(hash.as_slice(), &raw).await?;
 
         Ok(tree)
     }
@@ -101,34 +97,28 @@ impl Deployable for Tree {
     /// Will NOT deploy subdirectories. To get all subtrees, use `Tree::get_subtrees`
     ///
     /// A helper method `Tree::deploy_recursive` is available.
-    async fn deploy(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()> {
+    async fn deploy<C: ObjectCAS>(
+        &self,
+        cas: Arc<C>,
+        blobs_path: &Path,
+        deploy_path: &Path,
+    ) -> io::Result<()> {
         fs::create_dir_all(deploy_path).await?;
         Permissions::deploy(deploy_path.to_path_buf(), self.mode, self.uid, self.gid).await?;
 
-        let mut tasks = Vec::new();
-
         // Files
         for file in &self.files {
-            let repo = repo.clone();
-            let file = file.clone();
             let deploy_path = deploy_path.to_path_buf();
-            tasks.push(tokio::spawn(async move {
-                file.deploy(&repo, &deploy_path).await
-            }));
+            file.deploy(cas.clone(), blobs_path, &deploy_path).await?;
         }
 
         // Symlinks
         for symlink in &self.symlinks {
-            let repo = repo.clone();
             let symlink = symlink.clone();
             let deploy_path = deploy_path.to_path_buf();
-            tasks.push(tokio::spawn(async move {
-                symlink.deploy(&repo, &deploy_path).await
-            }));
-        }
-
-        for task in tasks {
-            task.await.expect("tokio join error on deploy")?;
+            symlink
+                .deploy(cas.clone(), blobs_path, &deploy_path)
+                .await?;
         }
 
         Ok(())
@@ -138,32 +128,43 @@ impl Deployable for Tree {
 impl Tree {
     /// Will include self and (recursively) all decendants.
     /// It's guarrenteed that the parent will be ordered first before the children.
-    pub async fn get_subtrees(&self, repo: &Repo) -> io::Result<Vec<(PathBuf, Tree)>> {
+    pub async fn get_subtrees<C: ObjectCAS>(
+        &self,
+        cas: Arc<C>,
+        blobs_path: &Path,
+    ) -> io::Result<Vec<(PathBuf, Tree)>> {
         let mut out = Vec::new();
-        self.collect_subtrees(repo, PathBuf::from(""), &mut out)
+        self.collect_subtrees(cas, blobs_path, PathBuf::from(""), &mut out)
             .await?;
         Ok(out)
     }
 
-    async fn collect_subtrees(
+    async fn collect_subtrees<C: ObjectCAS>(
         &self,
-        repo: &Repo,
+        cas: Arc<C>,
+        blobs_path: &Path,
         path: PathBuf,
         out: &mut Vec<(PathBuf, Tree)>,
     ) -> io::Result<()> {
         out.push((path.clone(), self.clone()));
         for subtree in &self.subtrees {
             let child_path = path.join(subtree.name.to_path_buf());
-            let tree = Tree::get(repo, &subtree.hash).await?;
-            Box::pin(tree.collect_subtrees(repo, child_path, out)).await?;
+            // TODO: Error handling
+            let tree = Tree::get(&*cas.clone(), &hex::decode(&subtree.hash).unwrap()).await?;
+            Box::pin(tree.collect_subtrees(cas.clone(), blobs_path, child_path, out)).await?;
         }
         Ok(())
     }
 
-    pub async fn deploy_recursive(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()> {
-        for (sub_deploy_path, tree) in self.get_subtrees(repo).await? {
+    pub async fn deploy_recursive<C: ObjectCAS>(
+        &self,
+        cas: Arc<C>,
+        blobs_path: &Path,
+        deploy_path: &Path,
+    ) -> io::Result<()> {
+        for (sub_deploy_path, tree) in self.get_subtrees(cas.clone(), blobs_path).await? {
             let deploy_path = deploy_path.join(sub_deploy_path);
-            tree.deploy(repo, &deploy_path).await?;
+            tree.deploy(cas.clone(), blobs_path, &deploy_path).await?;
         }
 
         Ok(())

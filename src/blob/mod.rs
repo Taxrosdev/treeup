@@ -14,7 +14,10 @@ use tokio::{
     io::AsyncWriteExt,
 };
 use tokio_stream::StreamExt;
-use treeup_core::downloader::{DownloadKind, Downloader};
+use treeup_core::{
+    downloader::{DownloadKind, Downloader},
+    object_cas::ObjectCAS,
+};
 
 use crate::{
     blob::error::Error,
@@ -42,8 +45,8 @@ pub struct BlobRef {
 
 impl BlobRef {
     /// Get the path on-disk of this Blob
-    pub async fn local_path_with_parent(&self, repo: &Repo) -> io::Result<PathBuf> {
-        let parent_path = repo.blobs_path.join(&self.hash[..2]);
+    pub async fn local_path_with_parent(&self, blobs_path: &Path) -> io::Result<PathBuf> {
+        let parent_path = blobs_path.join(&self.hash[..2]);
         fs::create_dir_all(&parent_path).await?;
         Ok(parent_path.join(&self.hash[2..]))
     }
@@ -52,25 +55,30 @@ impl BlobRef {
     ///
     /// Does not try to automatically create the parent directory.
     #[must_use]
-    pub fn local_path(&self, repo: &Repo) -> PathBuf {
-        let parent_path = repo.blobs_path.join(&self.hash[..2]);
+    pub fn local_path(&self, blobs_path: &Path) -> PathBuf {
+        let parent_path = blobs_path.join(&self.hash[..2]);
         parent_path.join(&self.hash[2..])
     }
 
     pub async fn exists(&self, repo: &Repo) -> io::Result<bool> {
-        let path = self.local_path(repo);
+        let path = self.local_path(&repo.blobs_path);
 
         fs::try_exists(&path).await
     }
 
     /// Download the referenced Blob onto disk
     pub async fn download(&self, repo: &Repo, downloader: Arc<impl Downloader>) -> Result<()> {
-        let path = self.local_path_with_parent(repo).await.context(IoSnafu)?;
+        let path = self
+            .local_path_with_parent(&repo.blobs_path)
+            .await
+            .context(IoSnafu)?;
         let tmp_path = path.with_extension("tmp");
         let mut tmp_file = File::create(&tmp_path).await?;
+        // TODO: Error handling
+        let hash_raw = hex::decode(&self.hash).unwrap();
 
         let mut stream = downloader
-            .fetch(&self.hash, DownloadKind::Blob)
+            .fetch(&hash_raw, DownloadKind::Blob)
             .await
             .context(DownloaderSnafu)?;
 
@@ -83,12 +91,12 @@ impl BlobRef {
 
         drop(tmp_file);
 
-        let calc_hash = hasher.finalize().to_hex().to_string();
-        if self.hash != calc_hash {
+        let calc_hash = hasher.finalize();
+        if hash_raw != calc_hash.as_slice() {
             fs::remove_file(tmp_path).await?;
             return Err(Error::HashError {
                 expected: self.hash.clone(),
-                received: calc_hash,
+                received: calc_hash.to_hex().to_string(),
             });
         }
 
@@ -105,8 +113,8 @@ impl BlobRef {
             return Ok(false);
         }
 
-        let old_path = self.local_path(old_repo);
-        let new_path = self.local_path_with_parent(new_repo).await?;
+        let old_path = self.local_path(&old_repo.blobs_path);
+        let new_path = self.local_path_with_parent(&new_repo.blobs_path).await?;
 
         if fs::hard_link(&old_path, &new_path).await.is_err() {
             // Fallback to copying. Installers are commonly on removable media, and not on the same
@@ -119,7 +127,11 @@ impl BlobRef {
 }
 
 impl Deployable for BlobRef {
-    async fn create(repo: &Repo, path: &Path) -> io::Result<Self> {
+    async fn create<C: ObjectCAS>(
+        _cas: Arc<C>,
+        blobs_path: &Path,
+        path: &Path,
+    ) -> io::Result<Self> {
         let mut hasher = blake3::Hasher::new();
         hasher.update_mmap_rayon(path)?;
         let hash = hasher.finalize().to_string();
@@ -134,7 +146,7 @@ impl Deployable for BlobRef {
             gid: permissions.gid,
             mode: permissions.mode,
         };
-        let blob_path = blob.local_path_with_parent(repo).await?;
+        let blob_path = blob.local_path_with_parent(blobs_path).await?;
 
         if !fs::try_exists(&blob_path).await? {
             fs::hard_link(path, blob_path).await?;
@@ -143,8 +155,13 @@ impl Deployable for BlobRef {
         Ok(blob)
     }
 
-    async fn deploy(&self, repo: &Repo, deploy_path: &Path) -> io::Result<()> {
-        let path = self.local_path(repo);
+    async fn deploy<C: ObjectCAS>(
+        &self,
+        _cas: Arc<C>,
+        blobs_path: &Path,
+        deploy_path: &Path,
+    ) -> io::Result<()> {
+        let path = self.local_path(blobs_path);
         fs::hard_link(path, deploy_path).await?;
 
         Permissions::deploy(deploy_path.to_path_buf(), self.mode, self.uid, self.gid).await?;

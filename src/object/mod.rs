@@ -1,53 +1,37 @@
 pub mod cas;
 pub mod error;
 
-use snafu::ResultExt;
-use std::{
-    io::{self, Write},
-    path::{Path, PathBuf},
-    sync::Arc,
+use snafu::{ResultExt, ensure};
+use std::{io, path::Path, sync::Arc};
+use treeup_core::{
+    downloader::{DownloadKind, Downloader},
+    object_cas::ObjectCAS,
 };
-use tokio::{
-    fs::{self, File},
-    io::AsyncWriteExt,
-};
-use tokio_stream::StreamExt;
-use treeup_core::downloader::{DownloadKind, Downloader};
 
 use crate::{
-    Repo,
     blob::BlobRef,
-    object::error::{DownloaderSnafu, Error},
-    utils::atomic::atomic_rename,
+    downloader::DownloaderExt,
+    object::error::{DownloaderSnafu, HashSnafu},
 };
 use error::Result;
 
 pub trait Deployable: Sized {
-    fn create(repo: &Repo, path: &Path) -> impl Future<Output = io::Result<Self>>;
-    fn deploy(
+    fn create<C: ObjectCAS>(
+        cas: Arc<C>,
+        blob_cas: &Path,
+        path: &Path,
+    ) -> impl Future<Output = io::Result<Self>>;
+    fn deploy<C: ObjectCAS>(
         &self,
-        repo: &Repo,
+        cas: Arc<C>,
+        blob_cas: &Path,
         deploy_path: &Path,
     ) -> impl Future<Output = io::Result<()>> + Send + Sync;
 }
 
 pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
-    #[must_use]
-    async fn local_path_with_parent(repo: &Repo, hash: &str) -> io::Result<PathBuf> {
-        let parent_path = repo.objects_path.join(&hash[..2]);
-        fs::create_dir_all(&parent_path).await?;
-        Ok(parent_path.join(&hash[2..]))
-    }
-
-    #[must_use]
-    fn local_path(repo: &Repo, hash: &str) -> PathBuf {
-        let parent_path = repo.objects_path.join(&hash[..2]);
-        parent_path.join(&hash[2..])
-    }
-
-    async fn get(repo: &Repo, hash: &str) -> io::Result<Self> {
-        let path = Self::local_path(repo, hash);
-        let raw = fs::read_to_string(path).await?;
+    async fn get<C: ObjectCAS>(cas: &C, hash: &[u8]) -> io::Result<Self> {
+        let raw = cas.get(hash).await?;
         Ok(serde_json::from_str(&raw)?)
     }
 
@@ -56,64 +40,48 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         Ok(blake3::hash(raw.as_bytes()).to_string())
     }
 
-    fn exists(repo: &Repo, hash: &str) -> impl Future<Output = io::Result<bool>> + Send {
-        async move {
-            let path = Self::local_path(repo, hash);
-
-            fs::try_exists(&path).await
-        }
+    fn exists<C: ObjectCAS>(cas: &C, hash: &[u8]) -> impl Future<Output = io::Result<bool>> + Send {
+        async move { cas.exists(hash).await }
     }
 
     /// Tries to clone an `Object` from `old_repo` to `new_repo`.
     /// Not to be confused with `clone`.
     ///
     /// Returns whether it was found locally and used.
-    async fn try_clone(old_repo: &Repo, new_repo: &Repo, hash: &str) -> io::Result<bool> {
-        if !Self::exists(old_repo, hash).await? {
+    async fn try_clone<A: ObjectCAS, B: ObjectCAS>(
+        old_cas: &A,
+        new_cas: &mut B,
+        hash: &[u8],
+    ) -> io::Result<bool> {
+        if !Self::exists(old_cas, hash).await? {
             return Ok(false);
         }
 
-        let old_path = Self::local_path(old_repo, hash);
-        let new_path = Self::local_path_with_parent(new_repo, hash).await?;
-
-        if fs::hard_link(&old_path, &new_path).await.is_err() {
-            // Fallback to copying. Installers are commonly on removable media, and not on the same
-            // partition.
-            fs::copy(old_path, new_path).await?;
-        }
+        let raw = old_cas.get(hash).await?;
+        new_cas.put(hash, &raw).await?;
 
         Ok(true)
     }
 
-    async fn download(repo: &Repo, downloader: Arc<impl Downloader>, hash: &str) -> Result<()> {
-        let path = Self::local_path_with_parent(repo, hash).await?;
-        let tmp_path = path.with_extension("tmp");
-        let mut tmp_file = File::create(&tmp_path).await?;
-
-        let mut stream = downloader
-            .fetch(hash, DownloadKind::Object)
+    async fn download<C: ObjectCAS>(
+        cas: &C,
+        downloader: Arc<impl Downloader>,
+        hash: &[u8],
+    ) -> Result<()> {
+        let data = downloader
+            .fetch_string(hash, DownloadKind::Object)
             .await
             .context(DownloaderSnafu)?;
 
-        let mut hasher = blake3::Hasher::new();
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.context(DownloaderSnafu)?;
-            hasher.write_all(&chunk)?;
-            tmp_file.write_all(&chunk).await?;
-        }
+        let calc_hash = blake3::hash(data.as_bytes());
+        ensure!(hash != calc_hash.as_slice(), {
+            HashSnafu {
+                expected: hex::encode(hash),
+                received: hex::encode(calc_hash.as_slice()),
+            }
+        });
 
-        drop(tmp_file);
-
-        let calc_hash = hasher.finalize().to_hex().to_string();
-        if hash != calc_hash {
-            fs::remove_file(tmp_path).await?;
-            return Err(Error::HashError {
-                expected: hash.to_string(),
-                received: calc_hash,
-            });
-        }
-
-        atomic_rename(tmp_path, path).await?;
+        cas.put(hash, &data).await?;
         Ok(())
     }
 
