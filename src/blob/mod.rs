@@ -21,9 +21,9 @@ use treeup_core::{
 
 use crate::{
     blob::error::Error,
+    object::Deployable,
     utils::{atomic::atomic_rename, permissions::Permissions},
 };
-use crate::{object::Deployable, repo::Repo};
 use error::{DownloaderSnafu, IoSnafu, Result};
 
 /// A reference to a Blob, containing all information that may be required for deploying.
@@ -60,16 +60,20 @@ impl BlobRef {
         parent_path.join(&self.hash[2..])
     }
 
-    pub async fn exists(&self, repo: &Repo) -> io::Result<bool> {
-        let path = self.local_path(&repo.blobs_path);
+    pub async fn exists(&self, blobs_path: &Path) -> io::Result<bool> {
+        let path = self.local_path(blobs_path);
 
         fs::try_exists(&path).await
     }
 
     /// Download the referenced Blob onto disk
-    pub async fn download(&self, repo: &Repo, downloader: Arc<impl Downloader>) -> Result<()> {
+    pub async fn download(
+        &self,
+        blobs_path: &Path,
+        downloader: Arc<impl Downloader>,
+    ) -> Result<()> {
         let path = self
-            .local_path_with_parent(&repo.blobs_path)
+            .local_path_with_parent(blobs_path)
             .await
             .context(IoSnafu)?;
         let tmp_path = path.with_extension("tmp");
@@ -108,13 +112,17 @@ impl BlobRef {
     /// Not to be confused with `clone`.
     ///
     /// Returns whether it was found locally and used.
-    pub async fn try_clone(&self, old_repo: &Repo, new_repo: &Repo) -> io::Result<bool> {
-        if !self.exists(old_repo).await? {
+    pub async fn try_clone(
+        &self,
+        old_blobs_path: &Path,
+        new_blobs_path: &Path,
+    ) -> io::Result<bool> {
+        if !self.exists(old_blobs_path).await? {
             return Ok(false);
         }
 
-        let old_path = self.local_path(&old_repo.blobs_path);
-        let new_path = self.local_path_with_parent(&new_repo.blobs_path).await?;
+        let old_path = self.local_path(old_blobs_path);
+        let new_path = self.local_path_with_parent(new_blobs_path).await?;
 
         if fs::hard_link(&old_path, &new_path).await.is_err() {
             // Fallback to copying. Installers are commonly on removable media, and not on the same

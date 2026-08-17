@@ -4,9 +4,6 @@ pub mod downloader;
 
 pub mod object;
 
-mod repo;
-pub use repo::*;
-
 mod tree;
 pub use tree::*;
 
