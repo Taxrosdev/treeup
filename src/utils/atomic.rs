@@ -6,14 +6,18 @@ use std::{io, path::PathBuf};
 /// # Errors
 /// From the underlying filesystem syscall.
 pub async fn atomic_rename(old_path: PathBuf, new_path: PathBuf) -> io::Result<()> {
-    tokio::task::spawn_blocking(move || sync_atomic_rename(old_path, new_path))
+    tokio::task::spawn_blocking(move || atomic_rename_blocking(old_path, new_path))
         .await
         .expect("internal panic on rename")?;
 
     Ok(())
 }
 
-fn sync_atomic_rename(old_path: PathBuf, new_path: PathBuf) -> io::Result<()> {
+/// Atomic renames using `renameat2`
+///
+/// # Errors
+/// From the underlying filesystem syscall.
+pub fn atomic_rename_blocking(old_path: PathBuf, new_path: PathBuf) -> io::Result<()> {
     if renameat2(
         AT_FDCWD,
         &old_path,
