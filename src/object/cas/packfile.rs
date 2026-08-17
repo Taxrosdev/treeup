@@ -93,6 +93,7 @@ struct PackfileIndex {
     len: u64,
 }
 
+/// Requires Packfile compatible Downloaders
 pub struct PackfileCAS {
     root: PathBuf,
     packfiles: HashMap<u8, Packfile>,
