@@ -26,7 +26,8 @@ impl Drop for Packfile {
         let mut data = Vec::new();
         data.extend_from_slice(&PACKFILE_MAGIC);
 
-        for (hash, index) in self.index.blocking_read().iter() {
+        // It should NEVER be read whilst `Drop` is being called, hence, this is entirely safe.
+        for (hash, index) in self.index.try_read().unwrap().iter() {
             data.push(hash.len().try_into().expect("Hash is above 256 bytes"));
             data.extend_from_slice(hash);
 
@@ -60,6 +61,10 @@ impl Packfile {
     }
 
     async fn load_index(path: &Path) -> io::Result<HashMap<Vec<u8>, PackfileIndex>> {
+        if !fs::try_exists(path).await? {
+            return Ok(HashMap::new());
+        };
+
         let file = fs::read(path).await?;
         let file = &mut file.iter().cloned();
         let magic: Vec<u8> = file.take(4).collect();
