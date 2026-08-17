@@ -50,7 +50,7 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
     /// Returns whether it was found locally and used.
     async fn try_clone<A: ObjectCAS, B: ObjectCAS>(
         old_cas: &A,
-        new_cas: &mut B,
+        new_cas: &B,
         hash: &[u8],
     ) -> io::Result<bool> {
         if !Self::exists(old_cas, hash).await? {

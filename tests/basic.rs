@@ -97,7 +97,7 @@ async fn basic() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut cas2 = BasicFS::create(tmp.path().join("objects2_cas")).await?;
-    let cloned = Tree::try_clone(&*cas, &mut cas2, &hash_bytes).await?;
+    let cloned = Tree::try_clone(&*cas, &cas2, &hash_bytes).await?;
     assert!(cloned);
     assert!(Tree::exists(&cas2, &hash_bytes).await?);
 
