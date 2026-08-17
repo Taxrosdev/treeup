@@ -122,8 +122,8 @@ impl PackfileCAS {
     }
 
     fn path(&self, hash: &[u8]) -> PathBuf {
-        let prefix = hex::encode(&hash[0..2]);
-        let suffix = hex::encode(&hash[2..]);
+        let prefix = hex::encode(&hash[0..1]);
+        let suffix = hex::encode(&hash[1..]);
         self.root.join(prefix).join(suffix)
     }
 }

@@ -10,12 +10,10 @@ impl BasicFS {
     pub async fn create(root: PathBuf) -> io::Result<Self> {
         // Precreate all directories
         let mut tasks = Vec::new();
-        for a in u8::MIN..=u8::MAX {
-            for b in u8::MIN..=u8::MAX {
-                tasks.push(tokio::spawn(fs::create_dir_all(
-                    root.join(hex::encode([a, b])),
-                )));
-            }
+        for i in u8::MIN..=u8::MAX {
+            tasks.push(tokio::spawn(fs::create_dir_all(
+                root.join(hex::encode([i])),
+            )));
         }
 
         for task in tasks {
@@ -26,8 +24,8 @@ impl BasicFS {
     }
 
     fn path(&self, hash: &[u8]) -> PathBuf {
-        let prefix = hex::encode(&hash[0..2]);
-        let suffix = hex::encode(&hash[2..]);
+        let prefix = hex::encode(&hash[0..1]);
+        let suffix = hex::encode(&hash[1..]);
         self.root.join(prefix).join(suffix)
     }
 }
