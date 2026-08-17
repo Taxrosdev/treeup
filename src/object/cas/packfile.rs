@@ -8,7 +8,7 @@ use std::{
 use tokio::{fs, sync::RwLock};
 use treeup_core::object_cas::ObjectCAS;
 
-use crate::utils::atomic::atomic_rename;
+use crate::utils::atomic::{atomic_rename, atomic_rename_blocking};
 
 const PACKFILE_MAGIC: [u8; 4] = *b"PACK";
 const MAX_PACKFILE_INSERT: usize = 2048;
@@ -35,7 +35,9 @@ impl Drop for Packfile {
             data.extend_from_slice(&index.len.to_le_bytes());
         }
 
-        std::fs::write(tmp_file, data).expect("packfile fs error");
+        std::fs::write(&tmp_file, data).expect("packfile fs error");
+        atomic_rename_blocking(tmp_file, self.index_path.clone())
+            .expect("atomic rename failure on packfile drop");
     }
 }
 
