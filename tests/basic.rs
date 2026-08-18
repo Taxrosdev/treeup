@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 use temp_dir::TempDir;
 use tokio::fs;
 use treeup::{
-    Repo, Tree,
+    Tree,
     object::{Deployable, Object, cas::BasicFS},
 };
 
@@ -22,10 +22,6 @@ async fn basic() -> Result<(), Box<dyn std::error::Error>> {
     fs::symlink("text", source_path.join("link")).await?;
 
     let cas = Arc::new(BasicFS::create(objects_path.clone()).await?);
-    let repo = Repo {
-        objects_path: Arc::new(tmp.path().join("objects")),
-        blobs_path: Arc::new(tmp.path().join("blobs")),
-    };
 
     let tree = Tree::create(cas.clone(), &blobs_path, &source_path).await?;
 
@@ -35,14 +31,7 @@ async fn basic() -> Result<(), Box<dyn std::error::Error>> {
     // Drop and Reopen
     drop(tree);
     drop(cas);
-    drop(repo);
-
     let cas = Arc::new(BasicFS::create(objects_path).await?);
-    let repo = Repo {
-        objects_path: Arc::new(tmp.path().join("objects")),
-        blobs_path: Arc::new(tmp.path().join("blobs")),
-    };
-
     let tree = Tree::get(&*cas, &hash_bytes).await?;
 
     // Assert tree exists
@@ -61,7 +50,7 @@ async fn basic() -> Result<(), Box<dyn std::error::Error>> {
 
     // Assert `BlobRef::exists` works
     for file in &tree.files {
-        assert!(file.blob.exists(&repo).await?);
+        assert!(file.blob.exists(&blobs_path).await?);
     }
 
     // Assert `Tree::get_subtrees` works
@@ -85,18 +74,15 @@ async fn basic() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(target, PathBuf::from("text"));
 
     // Assert Cloning works
-    let repo2 = Repo {
-        objects_path: Arc::new(tmp.path().join("objects2")),
-        blobs_path: Arc::new(tmp.path().join("blobs2")),
-    };
+    let alt_blobs_path = Arc::new(tmp.path().join("blobs2"));
 
     for file in &tree.files {
-        let cloned = file.blob.try_clone(&repo, &repo2).await?;
+        let cloned = file.blob.try_clone(&blobs_path, &alt_blobs_path).await?;
         assert!(cloned);
-        assert!(file.blob.exists(&repo2).await?);
+        assert!(file.blob.exists(&alt_blobs_path).await?);
     }
 
-    let mut cas2 = BasicFS::create(tmp.path().join("objects2_cas")).await?;
+    let cas2 = BasicFS::create(tmp.path().join("objects2")).await?;
     let cloned = Tree::try_clone(&*cas, &cas2, &hash_bytes).await?;
     assert!(cloned);
     assert!(Tree::exists(&cas2, &hash_bytes).await?);
