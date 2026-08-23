@@ -12,6 +12,7 @@ use std::{
 use tokio::{
     fs::{self, File},
     io::AsyncWriteExt,
+    task,
 };
 use tokio_stream::StreamExt;
 use treeup_core::{
@@ -140,11 +141,15 @@ impl Deployable for BlobRef {
         blobs_path: &Path,
         path: &Path,
     ) -> io::Result<Self> {
-        let mut hasher = blake3::Hasher::new();
-        hasher.update_mmap_rayon(path)?;
-        let hash = hasher.finalize().to_string();
+        let hash_path = path.to_path_buf();
+        let hash = task::spawn_blocking(|| {
+            let mut hasher = blake3::Hasher::new();
+            hasher.update_mmap_rayon(hash_path)?;
+            Ok::<String, io::Error>(hasher.finalize().to_string())
+        });
 
         let permissions = Permissions::get(path).await?;
+        let hash = hash.await.unwrap()?;
 
         let blob = BlobRef {
             hash: hash.clone(),
