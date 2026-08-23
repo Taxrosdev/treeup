@@ -59,7 +59,7 @@ impl ReqwestDownloader {
             client: reqwest::Client::new(),
             objects_base_url: objects_base_url.to_string(),
             blobs_base_url: blobs_base_url.to_string(),
-            remote: remote.into(),
+            remote,
         }
     }
 }

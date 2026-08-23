@@ -4,7 +4,7 @@ use std::pin::Pin;
 
 pub type DownloadError = Box<dyn std::error::Error + Send + Sync>;
 
-/// Utiltity to Fetch from a remote `Repo`
+/// Utiltity to Fetch from a remote `Repo`.
 pub trait Downloader: Send + Sync {
     fn fetch(
         &self,
@@ -22,6 +22,6 @@ pub trait Downloader: Send + Sync {
 
 #[derive(Copy, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DownloadKind {
-    Object,
     Blob,
+    Object,
 }

@@ -11,7 +11,10 @@ pub use file::File;
 mod symlink;
 pub use symlink::Symlink;
 
+/// HACK: This should be a configurable option.
 const CREATE_FILES_CONCURRENCY: usize = 16;
+/// HACK: This should be a configurable option.
+const CREATE_SYMLINK_CONCURRENCY: usize = 4;
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct Tree {
@@ -77,8 +80,7 @@ impl Deployable for Tree {
                         .into(),
                 });
             } else if filetype.is_symlink() {
-                let symlink = Symlink::create(cas.clone(), blobs_path, &filepath).await?;
-                symlinks.push(symlink);
+                symlinks.push(filepath);
             } else if filetype.is_file() {
                 files.push(filepath);
             }
@@ -87,7 +89,12 @@ impl Deployable for Tree {
         let files = stream::iter(files)
             .map(|path| File::create(cas.clone(), blobs_path, path))
             .buffered(CREATE_FILES_CONCURRENCY)
-            .try_collect()
+            .try_collect::<Vec<_>>()
+            .await?;
+        let symlinks = stream::iter(symlinks)
+            .map(|path| Symlink::create(cas.clone(), blobs_path, path))
+            .buffered(CREATE_SYMLINK_CONCURRENCY)
+            .try_collect::<Vec<_>>()
             .await?;
 
         let tree = Tree {

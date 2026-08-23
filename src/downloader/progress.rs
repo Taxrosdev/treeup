@@ -13,15 +13,15 @@ use treeup_core::downloader::{DownloadError, DownloadKind, Downloader};
 #[derive(Clone)]
 pub struct ProgressDownloader<D: Downloader> {
     downloader: Arc<D>,
-    downloaded: Arc<AtomicU64>,
+    bytes_downloaded: Arc<AtomicU64>,
 }
 
 impl<D: Downloader> ProgressDownloader<D> {
     #[must_use]
-    pub fn from_downloader(downloader: Arc<D>, downloaded: Arc<AtomicU64>) -> Self {
+    pub fn from_downloader(downloader: Arc<D>, bytes_downloaded: Arc<AtomicU64>) -> Self {
         Self {
             downloader,
-            downloaded,
+            bytes_downloaded,
         }
     }
 }
@@ -33,11 +33,11 @@ impl<D: Downloader> Downloader for ProgressDownloader<D> {
         kind: DownloadKind,
     ) -> Result<Pin<Box<impl Stream<Item = Result<Bytes, DownloadError>>>>, DownloadError> {
         let stream = self.downloader.fetch(hash, kind).await?;
-        let downloaded = self.downloaded.clone();
+        let bytes_downloaded = self.bytes_downloaded.clone();
 
         Ok(Box::pin(stream.map(move |r| {
             r.inspect(|chunk| {
-                downloaded.fetch_add(chunk.len() as u64, Ordering::Relaxed);
+                bytes_downloaded.fetch_add(chunk.len() as u64, Ordering::Relaxed);
             })
         })))
     }

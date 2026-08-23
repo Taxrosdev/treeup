@@ -36,7 +36,7 @@ impl Drop for Packfile {
         }
 
         std::fs::write(&tmp_file, data).expect("packfile fs error");
-        atomic_rename_blocking(tmp_file, self.index_path.clone())
+        atomic_rename_blocking(&tmp_file, &self.index_path)
             .expect("atomic rename failure on packfile drop");
     }
 }
@@ -65,10 +65,10 @@ impl Packfile {
     async fn load_index(path: &Path) -> io::Result<HashMap<Vec<u8>, PackfileIndex>> {
         if !fs::try_exists(path).await? {
             return Ok(HashMap::new());
-        };
+        }
 
         let file = fs::read(path).await?;
-        let file = &mut file.iter().cloned();
+        let file = &mut file.iter().copied();
         let magic: Vec<u8> = file.take(4).collect();
         if magic != PACKFILE_MAGIC {
             return Err(io::ErrorKind::InvalidData.into());

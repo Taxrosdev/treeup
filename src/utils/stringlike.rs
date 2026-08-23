@@ -3,11 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// StringLike is a container for `OsString` and regular `String`, automatically converting to
+/// `StringLike` is a container for `OsString` and regular `String`, automatically converting to
 /// `String` when possible.
 ///
 /// Useful for cases involving serialization, which tend to be verbose with `OsString`
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StringLike {
     Str(String),
     OsStr(OsString),
