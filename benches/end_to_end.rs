@@ -17,9 +17,18 @@ fn create_fake_tree(path: &Path, complexity: usize) -> io::Result<()> {
         create_fake_tree(&path, complexity / 2).unwrap();
     }
 
-    for i in 0..=complexity {
+    // 50% small text files
+    for i in 0..=complexity / 2 {
         let path = path.join(format!("{i}.file"));
         fs::write(&path, "asdasd").unwrap();
+    }
+
+    // 50% big binary files of garbage
+    for i in 0..=complexity / 2 {
+        let path = path.join(format!("{i}.file.big"));
+        let mut bin = Vec::with_capacity(i);
+        bin.resize(i, i.to_ne_bytes()[0]);
+        fs::write(&path, bin).unwrap();
     }
 
     Ok(())
