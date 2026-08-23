@@ -30,5 +30,10 @@ tokio-stream = "0.1"
 treeup-core = { path = "./core" }
 
 [dev-dependencies]
+criterion = { version = "0.8", features = ["async_tokio", "html_reports"] }
 temp-dir = "0.2.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[[bench]]
+name = "end_to_end"
+harness = false
