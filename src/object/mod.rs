@@ -16,17 +16,17 @@ use crate::{
 use error::Result;
 
 pub trait Deployable: Sized {
-    fn create<C: ObjectCAS>(
+    fn create<C: ObjectCAS, P: AsRef<Path>>(
         cas: Arc<C>,
         blob_cas: &Path,
-        path: &Path,
+        path: P,
     ) -> impl Future<Output = io::Result<Self>>;
-    fn deploy<C: ObjectCAS>(
+    fn deploy<C: ObjectCAS, P: AsRef<Path> + Send>(
         &self,
         cas: Arc<C>,
         blob_cas: &Path,
-        deploy_path: &Path,
-    ) -> impl Future<Output = io::Result<()>> + Send + Sync;
+        deploy_path: P,
+    ) -> impl Future<Output = io::Result<()>> + Send;
 }
 
 pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {

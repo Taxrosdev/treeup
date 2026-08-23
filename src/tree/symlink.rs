@@ -21,16 +21,21 @@ pub struct Symlink {
 }
 
 impl Deployable for Symlink {
-    async fn create<C: ObjectCAS>(
+    async fn create<C: ObjectCAS, P: AsRef<Path>>(
         _cas: Arc<C>,
         _blobs_path: &Path,
-        path: &Path,
+        path: P,
     ) -> io::Result<Self> {
-        let target = fs::read_link(path).await?.as_os_str().to_os_string().into();
-        let permissions = Permissions::get(path).await?;
+        let target = fs::read_link(&path)
+            .await?
+            .as_os_str()
+            .to_os_string()
+            .into();
+        let permissions = Permissions::get(&path).await?;
 
         Ok(Symlink {
             name: path
+                .as_ref()
                 .file_name()
                 .ok_or(io::ErrorKind::InvalidFilename)?
                 .to_os_string()
@@ -42,13 +47,13 @@ impl Deployable for Symlink {
         })
     }
 
-    async fn deploy<C: ObjectCAS>(
+    async fn deploy<C: ObjectCAS, P: AsRef<Path>>(
         &self,
         _cas: Arc<C>,
         _blobs_path: &Path,
-        deploy_parent_path: &Path,
+        deploy_parent_path: P,
     ) -> io::Result<()> {
-        let deploy_path = deploy_parent_path.join(&self.name);
+        let deploy_path = deploy_parent_path.as_ref().join(&self.name);
         fs::symlink(self.target.to_path_buf(), &deploy_path).await?;
 
         Permissions::deploy(deploy_path.to_path_buf(), None, self.uid, self.gid).await?;

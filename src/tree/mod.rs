@@ -1,3 +1,4 @@
+use futures_util::{StreamExt, TryStreamExt, stream};
 use std::{io, path::Path, path::PathBuf, sync::Arc};
 use tokio::fs;
 use treeup_core::object_cas::ObjectCAS;
@@ -9,6 +10,8 @@ mod file;
 pub use file::File;
 mod symlink;
 pub use symlink::Symlink;
+
+const CREATE_FILES_CONCURRENCY: usize = 16;
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct Tree {
@@ -43,8 +46,12 @@ impl Object for Tree {
 }
 
 impl Deployable for Tree {
-    async fn create<C: ObjectCAS>(cas: Arc<C>, blobs_path: &Path, path: &Path) -> io::Result<Self> {
-        let permissions = Permissions::get(path).await?;
+    async fn create<C: ObjectCAS, P: AsRef<Path>>(
+        cas: Arc<C>,
+        blobs_path: &Path,
+        path: P,
+    ) -> io::Result<Self> {
+        let permissions = Permissions::get(&path).await?;
 
         let mut subtrees = Vec::new();
         let mut files = Vec::new();
@@ -73,10 +80,15 @@ impl Deployable for Tree {
                 let symlink = Symlink::create(cas.clone(), blobs_path, &filepath).await?;
                 symlinks.push(symlink);
             } else if filetype.is_file() {
-                let file = File::create(cas.clone(), blobs_path, &filepath).await?;
-                files.push(file);
+                files.push(filepath);
             }
         }
+
+        let files = stream::iter(files)
+            .map(|path| File::create(cas.clone(), blobs_path, path))
+            .buffered(CREATE_FILES_CONCURRENCY)
+            .try_collect()
+            .await?;
 
         let tree = Tree {
             subtrees,
@@ -97,13 +109,16 @@ impl Deployable for Tree {
     /// Will NOT deploy subdirectories. To get all subtrees, use `Tree::get_subtrees`
     ///
     /// A helper method `Tree::deploy_recursive` is available.
-    async fn deploy<C: ObjectCAS>(
+    async fn deploy<C: ObjectCAS, P: AsRef<Path> + Send>(
         &self,
         cas: Arc<C>,
         blobs_path: &Path,
-        deploy_path: &Path,
+        deploy_path: P,
     ) -> io::Result<()> {
-        fs::create_dir_all(deploy_path).await?;
+        // HACK: This is arguably the wrong way to fix this.
+        let deploy_path = deploy_path.as_ref();
+
+        fs::create_dir_all(&deploy_path).await?;
         Permissions::deploy(deploy_path.to_path_buf(), self.mode, self.uid, self.gid).await?;
 
         // Files

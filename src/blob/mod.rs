@@ -136,24 +136,24 @@ impl BlobRef {
 }
 
 impl Deployable for BlobRef {
-    async fn create<C: ObjectCAS>(
+    async fn create<C: ObjectCAS, P: AsRef<Path>>(
         _cas: Arc<C>,
         blobs_path: &Path,
-        path: &Path,
+        path: P,
     ) -> io::Result<Self> {
-        let hash_path = path.to_path_buf();
+        let hash_path = path.as_ref().to_owned();
         let hash = task::spawn_blocking(|| {
             let mut hasher = blake3::Hasher::new();
             hasher.update_mmap_rayon(hash_path)?;
             Ok::<String, io::Error>(hasher.finalize().to_string())
         });
 
-        let permissions = Permissions::get(path).await?;
+        let permissions = Permissions::get(&path).await?;
         let hash = hash.await.unwrap()?;
 
         let blob = BlobRef {
             hash: hash.clone(),
-            size: fs::metadata(path).await?.len(),
+            size: fs::metadata(&path).await?.len(),
 
             uid: permissions.uid,
             gid: permissions.gid,
@@ -162,22 +162,25 @@ impl Deployable for BlobRef {
         let blob_path = blob.local_path_with_parent(blobs_path).await?;
 
         if !fs::try_exists(&blob_path).await? {
-            fs::hard_link(path, blob_path).await?;
+            fs::hard_link(&path, blob_path).await?;
         }
 
         Ok(blob)
     }
 
-    async fn deploy<C: ObjectCAS>(
+    async fn deploy<C: ObjectCAS, P: AsRef<Path> + Send>(
         &self,
         _cas: Arc<C>,
         blobs_path: &Path,
-        deploy_path: &Path,
+        deploy_path: P,
     ) -> io::Result<()> {
+        // HACK: This is arguably the wrong way to fix this.
+        let deploy_path = deploy_path.as_ref();
+
         let path = self.local_path(blobs_path);
         fs::hard_link(path, deploy_path).await?;
 
-        Permissions::deploy(deploy_path.to_path_buf(), self.mode, self.uid, self.gid).await?;
+        Permissions::deploy(deploy_path, self.mode, self.uid, self.gid).await?;
 
         Ok(())
     }

@@ -21,14 +21,14 @@ impl Permissions {
     }
 
     pub async fn deploy(
-        path: PathBuf,
+        path: impl AsRef<Path>,
         mode: Option<u32>,
         uid: Option<u32>,
         gid: Option<u32>,
     ) -> io::Result<()> {
         // ALUS runs as root in 99% of scenarios.
         if uid.unwrap_or(0) != 0 || gid.unwrap_or(0) != 0 {
-            chown(path.clone(), uid, gid).await?;
+            chown(path.as_ref().to_path_buf(), uid, gid).await?;
         }
 
         if let Some(mode) = mode {

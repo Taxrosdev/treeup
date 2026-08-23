@@ -11,9 +11,14 @@ pub struct File {
 }
 
 impl Deployable for File {
-    async fn create<C: ObjectCAS>(cas: Arc<C>, blobs_path: &Path, path: &Path) -> io::Result<Self> {
+    async fn create<C: ObjectCAS, P: AsRef<Path>>(
+        cas: Arc<C>,
+        blobs_path: &Path,
+        path: P,
+    ) -> io::Result<Self> {
         Ok(File {
             name: path
+                .as_ref()
                 .file_name()
                 .ok_or(io::ErrorKind::InvalidFilename)?
                 .to_os_string()
@@ -22,13 +27,13 @@ impl Deployable for File {
         })
     }
 
-    async fn deploy<C: ObjectCAS>(
+    async fn deploy<C: ObjectCAS, P: AsRef<Path>>(
         &self,
         cas: Arc<C>,
         blobs_path: &Path,
-        deploy_parent_path: &Path,
+        deploy_parent_path: P,
     ) -> io::Result<()> {
-        let deploy_path = deploy_parent_path.join(self.name.to_os_string());
+        let deploy_path = deploy_parent_path.as_ref().join(self.name.to_os_string());
 
         self.blob.deploy(cas, blobs_path, &deploy_path).await?;
 

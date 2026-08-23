@@ -1734,6 +1734,7 @@ dependencies = [
  "bytes",
  "criterion",
  "futures-core",
+ "futures-util",
  "hex",
  "memmap2",
  "nix",
