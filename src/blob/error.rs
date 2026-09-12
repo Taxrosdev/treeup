@@ -7,6 +7,12 @@ pub enum Error {
     Downloader { source: DownloadError },
     #[snafu(display("Invalid hash, expected: {expected}, received: {received}"))]
     HashError { expected: String, received: String },
+    #[snafu(display("Invalid blob hash '{hash}'"))]
+    HashDecode {
+        hash: String,
+        #[snafu(source)]
+        source: hex::FromHexError,
+    },
     IoError {
         #[snafu(source)]
         source: std::io::Error,

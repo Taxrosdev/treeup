@@ -3,9 +3,16 @@ use std::path::PathBuf;
 use std::{io, path::Path};
 use tokio::fs;
 
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Default)]
 pub struct Permissions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub mode: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub uid: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub gid: Option<u32>,
 }
 

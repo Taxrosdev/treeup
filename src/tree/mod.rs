@@ -24,15 +24,9 @@ pub struct Tree {
     #[serde(default)]
     pub symlinks: Vec<Symlink>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(flatten)]
     #[serde(default)]
-    mode: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    uid: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    gid: Option<u32>,
+    permissions: Permissions,
 }
 
 impl Object for Tree {}
@@ -90,9 +84,7 @@ impl Tree {
             subtrees,
             files,
             symlinks,
-            uid: permissions.uid,
-            gid: permissions.gid,
-            mode: permissions.mode,
+            permissions,
         };
 
         let raw = serde_json::to_string(&tree)?;
@@ -105,28 +97,24 @@ impl Tree {
     /// Will NOT deploy subdirectories. To get all subtrees, use `Tree::get_subtrees`
     ///
     /// A helper method `Tree::deploy_recursive` is available.
-    pub async fn deploy<P: AsRef<Path> + Send>(
-        &self,
-        blobs_path: &Path,
-        deploy_path: P,
-    ) -> io::Result<()> {
-        // HACK: This is arguably the wrong way to fix this.
-        let deploy_path = deploy_path.as_ref();
-
-        fs::create_dir_all(&deploy_path).await?;
-        Permissions::deploy(deploy_path.to_path_buf(), self.mode, self.uid, self.gid).await?;
+    pub async fn deploy(&self, blobs_path: &Path, deploy_path: &Path) -> io::Result<()> {
+        fs::create_dir_all(deploy_path).await?;
+        Permissions::deploy(
+            deploy_path,
+            self.permissions.mode,
+            self.permissions.uid,
+            self.permissions.gid,
+        )
+        .await?;
 
         // Files
         for file in &self.files {
-            let deploy_path = deploy_path.to_path_buf();
-            file.deploy(blobs_path, &deploy_path).await?;
+            file.deploy(blobs_path, deploy_path).await?;
         }
 
         // Symlinks
         for symlink in &self.symlinks {
-            let symlink = symlink.clone();
-            let deploy_path = deploy_path.to_path_buf();
-            symlink.deploy(&deploy_path).await?;
+            symlink.deploy(deploy_path).await?;
         }
 
         Ok(())
@@ -155,8 +143,8 @@ impl Tree {
         out.push((path.clone(), self.clone()));
         for subtree in &self.subtrees {
             let child_path = path.join(subtree.name.to_path_buf());
-            // TODO: Error handling
-            let tree = Tree::get(&*cas, &hex::decode(&subtree.hash).unwrap()).await?;
+            let hash = hex::decode(&subtree.hash).map_err(io::Error::other)?;
+            let tree = Tree::get(&*cas, &hash).await?;
             Box::pin(tree.collect_subtrees(cas.clone(), child_path, out)).await?;
         }
         Ok(())

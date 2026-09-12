@@ -21,7 +21,7 @@ use crate::{
     blob::error::Error,
     utils::{atomic::atomic_rename, permissions::Permissions},
 };
-use error::{DownloaderSnafu, IoSnafu, Result};
+use error::{DownloaderSnafu, HashDecodeSnafu, IoSnafu, Result};
 
 /// A reference to a Blob, containing all information that may be required for deploying.
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
@@ -29,15 +29,9 @@ pub struct BlobRef {
     hash: String,
     pub size: u64,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(flatten)]
     #[serde(default)]
-    mode: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    uid: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    gid: Option<u32>,
+    permissions: Permissions,
 }
 
 impl BlobRef {
@@ -75,8 +69,9 @@ impl BlobRef {
             .context(IoSnafu)?;
         let tmp_path = path.with_extension("tmp");
         let mut tmp_file = File::create(&tmp_path).await?;
-        // TODO: Error handling
-        let hash_raw = hex::decode(&self.hash).unwrap();
+        let hash_raw = hex::decode(&self.hash).context(HashDecodeSnafu {
+            hash: self.hash.clone(),
+        })?;
 
         let mut stream = downloader
             .fetch(&hash_raw, DownloadKind::Blob)
@@ -139,15 +134,13 @@ impl BlobRef {
         });
 
         let permissions = Permissions::get(&path).await?;
-        let hash = hash.await.unwrap()?;
+        let hash = hash.await.map_err(io::Error::other)??;
 
         let blob = BlobRef {
             hash: hash.clone(),
             size: fs::metadata(&path).await?.len(),
 
-            uid: permissions.uid,
-            gid: permissions.gid,
-            mode: permissions.mode,
+            permissions,
         };
         let blob_path = blob.local_path_with_parent(blobs_path).await?;
 
@@ -158,18 +151,17 @@ impl BlobRef {
         Ok(blob)
     }
 
-    pub async fn deploy<P: AsRef<Path> + Send>(
-        &self,
-        blobs_path: &Path,
-        deploy_path: P,
-    ) -> io::Result<()> {
-        // HACK: This is arguably the wrong way to fix this.
-        let deploy_path = deploy_path.as_ref();
-
+    pub async fn deploy(&self, blobs_path: &Path, deploy_path: &Path) -> io::Result<()> {
         let path = self.local_path(blobs_path);
         fs::hard_link(path, deploy_path).await?;
 
-        Permissions::deploy(deploy_path, self.mode, self.uid, self.gid).await?;
+        Permissions::deploy(
+            deploy_path,
+            self.permissions.mode,
+            self.permissions.uid,
+            self.permissions.gid,
+        )
+        .await?;
 
         Ok(())
     }

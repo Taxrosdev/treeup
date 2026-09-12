@@ -9,12 +9,9 @@ pub struct Symlink {
     pub name: StringLike,
     pub target: StringLike,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(flatten)]
     #[serde(default)]
-    uid: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    gid: Option<u32>,
+    permissions: Permissions,
 }
 
 impl Symlink {
@@ -35,16 +32,25 @@ impl Symlink {
                 .into(),
             target,
 
-            uid: permissions.uid,
-            gid: permissions.gid,
+            permissions: Permissions {
+                mode: None,
+                uid: permissions.uid,
+                gid: permissions.gid,
+            },
         })
     }
 
-    pub async fn deploy<P: AsRef<Path>>(&self, deploy_parent_path: P) -> io::Result<()> {
-        let deploy_path = deploy_parent_path.as_ref().join(&self.name);
+    pub async fn deploy(&self, deploy_parent_path: &Path) -> io::Result<()> {
+        let deploy_path = deploy_parent_path.join(&self.name);
         fs::symlink(self.target.to_path_buf(), &deploy_path).await?;
 
-        Permissions::deploy(deploy_path, None, self.uid, self.gid).await?;
+        Permissions::deploy(
+            &deploy_path,
+            self.permissions.mode,
+            self.permissions.uid,
+            self.permissions.gid,
+        )
+        .await?;
 
         Ok(())
     }

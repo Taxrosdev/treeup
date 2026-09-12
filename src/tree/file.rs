@@ -21,12 +21,8 @@ impl File {
         })
     }
 
-    pub async fn deploy<P: AsRef<Path>>(
-        &self,
-        blobs_path: &Path,
-        deploy_parent_path: P,
-    ) -> io::Result<()> {
-        let deploy_path = deploy_parent_path.as_ref().join(self.name.to_os_string());
+    pub async fn deploy(&self, blobs_path: &Path, deploy_parent_path: &Path) -> io::Result<()> {
+        let deploy_path = deploy_parent_path.join(self.name.to_os_string());
 
         self.blob.deploy(blobs_path, &deploy_path).await?;
 
