@@ -6,7 +6,7 @@ use treeup::blob::BlobRef;
 async fn main() -> io::Result<()> {
     let path = TempDir::new()?;
     let repo_path = TempDir::new()?;
-    // You could store these in the same directory, but they are commonly seperated.
+    // You could store these in the same directory, but they are commonly separated.
     let blobs_path = repo_path.path().join("blobs");
 
     // Create a file that will become our blob.

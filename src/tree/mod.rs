@@ -122,8 +122,8 @@ impl Tree {
 }
 
 impl Tree {
-    /// Will include self and (recursively) all decendants.
-    /// It's guarrenteed that the parent will be ordered first before the children.
+    /// Will include self and (recursively) all descendants.
+    /// It's guaranteed that the parent will be ordered first before the children.
     pub async fn get_subtrees<C: ObjectCAS>(
         &self,
         cas: Arc<C>,
