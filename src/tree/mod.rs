@@ -3,7 +3,7 @@ use std::{io, path::Path, path::PathBuf, sync::Arc};
 use tokio::fs;
 use treeup_core::object_cas::ObjectCAS;
 
-use crate::object::{Dependencies, Deployable, Object};
+use crate::object::Object;
 use crate::utils::permissions::Permissions;
 use crate::utils::stringlike::StringLike;
 mod file;
@@ -35,21 +35,10 @@ pub struct Tree {
     gid: Option<u32>,
 }
 
-impl Object for Tree {
-    fn get_dependencies(&self) -> Dependencies<'_> {
-        Dependencies {
-            objects: self
-                .subtrees
-                .iter()
-                .map(|tree| tree.hash.as_str())
-                .collect(),
-            blobs: self.files.iter().map(|file| &file.blob).collect(),
-        }
-    }
-}
+impl Object for Tree {}
 
-impl Deployable for Tree {
-    async fn create<C: ObjectCAS, P: AsRef<Path>>(
+impl Tree {
+    pub async fn create<C: ObjectCAS, P: AsRef<Path>>(
         cas: Arc<C>,
         blobs_path: &Path,
         path: P,
@@ -116,7 +105,7 @@ impl Deployable for Tree {
     /// Will NOT deploy subdirectories. To get all subtrees, use `Tree::get_subtrees`
     ///
     /// A helper method `Tree::deploy_recursive` is available.
-    async fn deploy<C: ObjectCAS, P: AsRef<Path> + Send>(
+    pub async fn deploy<C: ObjectCAS, P: AsRef<Path> + Send>(
         &self,
         cas: Arc<C>,
         blobs_path: &Path,

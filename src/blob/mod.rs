@@ -22,7 +22,6 @@ use treeup_core::{
 
 use crate::{
     blob::error::Error,
-    object::Deployable,
     utils::{atomic::atomic_rename, permissions::Permissions},
 };
 use error::{DownloaderSnafu, IoSnafu, Result};
@@ -133,10 +132,8 @@ impl BlobRef {
 
         Ok(true)
     }
-}
 
-impl Deployable for BlobRef {
-    async fn create<C: ObjectCAS, P: AsRef<Path>>(
+    pub async fn create<C: ObjectCAS, P: AsRef<Path>>(
         _cas: Arc<C>,
         blobs_path: &Path,
         path: P,
@@ -168,7 +165,7 @@ impl Deployable for BlobRef {
         Ok(blob)
     }
 
-    async fn deploy<C: ObjectCAS, P: AsRef<Path> + Send>(
+    pub async fn deploy<C: ObjectCAS, P: AsRef<Path> + Send>(
         &self,
         _cas: Arc<C>,
         blobs_path: &Path,

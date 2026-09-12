@@ -2,32 +2,17 @@ pub mod cas;
 pub mod error;
 
 use snafu::{ResultExt, ensure};
-use std::{io, path::Path, sync::Arc};
+use std::{io, sync::Arc};
 use treeup_core::{
     downloader::{DownloadKind, Downloader},
     object_cas::ObjectCAS,
 };
 
 use crate::{
-    blob::BlobRef,
     downloader::DownloaderExt,
     object::error::{DownloaderSnafu, HashSnafu},
 };
 use error::Result;
-
-pub trait Deployable: Sized {
-    fn create<C: ObjectCAS, P: AsRef<Path>>(
-        cas: Arc<C>,
-        blob_cas: &Path,
-        path: P,
-    ) -> impl Future<Output = io::Result<Self>>;
-    fn deploy<C: ObjectCAS, P: AsRef<Path> + Send>(
-        &self,
-        cas: Arc<C>,
-        blob_cas: &Path,
-        deploy_path: P,
-    ) -> impl Future<Output = io::Result<()>> + Send;
-}
 
 pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
     async fn get<C: ObjectCAS>(cas: &C, hash: &[u8]) -> io::Result<Self> {
@@ -84,12 +69,4 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
         cas.put(hash, &data).await?;
         Ok(())
     }
-
-    /// Get bordering dependencies
-    fn get_dependencies(&self) -> Dependencies<'_>;
-}
-
-pub struct Dependencies<'a> {
-    pub objects: Vec<&'a str>,
-    pub blobs: Vec<&'a BlobRef>,
 }

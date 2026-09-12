@@ -3,7 +3,6 @@ use std::{io, path::Path};
 use tokio::fs;
 use treeup_core::object_cas::ObjectCAS;
 
-use crate::object::Deployable;
 use crate::utils::permissions::Permissions;
 use crate::utils::stringlike::StringLike;
 
@@ -20,8 +19,8 @@ pub struct Symlink {
     gid: Option<u32>,
 }
 
-impl Deployable for Symlink {
-    async fn create<C: ObjectCAS, P: AsRef<Path>>(
+impl Symlink {
+    pub async fn create<C: ObjectCAS, P: AsRef<Path>>(
         _cas: Arc<C>,
         _blobs_path: &Path,
         path: P,
@@ -47,7 +46,7 @@ impl Deployable for Symlink {
         })
     }
 
-    async fn deploy<C: ObjectCAS, P: AsRef<Path>>(
+    pub async fn deploy<C: ObjectCAS, P: AsRef<Path>>(
         &self,
         _cas: Arc<C>,
         _blobs_path: &Path,

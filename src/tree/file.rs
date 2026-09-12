@@ -2,7 +2,7 @@ use std::{io, path::Path, sync::Arc};
 
 use treeup_core::object_cas::ObjectCAS;
 
-use crate::{blob::BlobRef, object::Deployable, utils::stringlike::StringLike};
+use crate::{blob::BlobRef, utils::stringlike::StringLike};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct File {
@@ -10,8 +10,8 @@ pub struct File {
     pub blob: BlobRef,
 }
 
-impl Deployable for File {
-    async fn create<C: ObjectCAS, P: AsRef<Path>>(
+impl File {
+    pub async fn create<C: ObjectCAS, P: AsRef<Path>>(
         cas: Arc<C>,
         blobs_path: &Path,
         path: P,
@@ -27,7 +27,7 @@ impl Deployable for File {
         })
     }
 
-    async fn deploy<C: ObjectCAS, P: AsRef<Path>>(
+    pub async fn deploy<C: ObjectCAS, P: AsRef<Path>>(
         &self,
         cas: Arc<C>,
         blobs_path: &Path,
