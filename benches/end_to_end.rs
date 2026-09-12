@@ -2,7 +2,7 @@ use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_ma
 use std::{fs, io, path::Path, sync::Arc};
 use temp_dir::TempDir;
 use tokio::runtime::Builder;
-use treeup::object::{Deployable, cas::BasicFS};
+use treeup::object::cas::BasicFS;
 
 /// Helper function to create a heap of garbage that can be used as an example tree
 fn create_fake_tree(path: &Path, complexity: usize) -> io::Result<()> {

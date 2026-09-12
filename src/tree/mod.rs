@@ -76,12 +76,12 @@ impl Tree {
         }
 
         let files = stream::iter(files)
-            .map(|path| File::create(cas.clone(), blobs_path, path))
+            .map(|path| File::create(blobs_path, path))
             .buffered(CREATE_FILES_CONCURRENCY)
             .try_collect::<Vec<_>>()
             .await?;
         let symlinks = stream::iter(symlinks)
-            .map(|path| Symlink::create(cas.clone(), blobs_path, path))
+            .map(Symlink::create)
             .buffered(CREATE_SYMLINK_CONCURRENCY)
             .try_collect::<Vec<_>>()
             .await?;
@@ -105,9 +105,8 @@ impl Tree {
     /// Will NOT deploy subdirectories. To get all subtrees, use `Tree::get_subtrees`
     ///
     /// A helper method `Tree::deploy_recursive` is available.
-    pub async fn deploy<C: ObjectCAS, P: AsRef<Path> + Send>(
+    pub async fn deploy<P: AsRef<Path> + Send>(
         &self,
-        cas: Arc<C>,
         blobs_path: &Path,
         deploy_path: P,
     ) -> io::Result<()> {
@@ -120,16 +119,14 @@ impl Tree {
         // Files
         for file in &self.files {
             let deploy_path = deploy_path.to_path_buf();
-            file.deploy(cas.clone(), blobs_path, &deploy_path).await?;
+            file.deploy(blobs_path, &deploy_path).await?;
         }
 
         // Symlinks
         for symlink in &self.symlinks {
             let symlink = symlink.clone();
             let deploy_path = deploy_path.to_path_buf();
-            symlink
-                .deploy(cas.clone(), blobs_path, &deploy_path)
-                .await?;
+            symlink.deploy(&deploy_path).await?;
         }
 
         Ok(())
@@ -142,10 +139,9 @@ impl Tree {
     pub async fn get_subtrees<C: ObjectCAS>(
         &self,
         cas: Arc<C>,
-        blobs_path: &Path,
     ) -> io::Result<Vec<(PathBuf, Tree)>> {
         let mut out = Vec::new();
-        self.collect_subtrees(cas, blobs_path, PathBuf::from(""), &mut out)
+        self.collect_subtrees(cas, PathBuf::from(""), &mut out)
             .await?;
         Ok(out)
     }
@@ -153,7 +149,6 @@ impl Tree {
     async fn collect_subtrees<C: ObjectCAS>(
         &self,
         cas: Arc<C>,
-        blobs_path: &Path,
         path: PathBuf,
         out: &mut Vec<(PathBuf, Tree)>,
     ) -> io::Result<()> {
@@ -161,8 +156,8 @@ impl Tree {
         for subtree in &self.subtrees {
             let child_path = path.join(subtree.name.to_path_buf());
             // TODO: Error handling
-            let tree = Tree::get(&*cas.clone(), &hex::decode(&subtree.hash).unwrap()).await?;
-            Box::pin(tree.collect_subtrees(cas.clone(), blobs_path, child_path, out)).await?;
+            let tree = Tree::get(&*cas, &hex::decode(&subtree.hash).unwrap()).await?;
+            Box::pin(tree.collect_subtrees(cas.clone(), child_path, out)).await?;
         }
         Ok(())
     }
@@ -173,9 +168,9 @@ impl Tree {
         blobs_path: &Path,
         deploy_path: &Path,
     ) -> io::Result<()> {
-        for (sub_deploy_path, tree) in self.get_subtrees(cas.clone(), blobs_path).await? {
+        for (sub_deploy_path, tree) in self.get_subtrees(cas.clone()).await? {
             let deploy_path = deploy_path.join(sub_deploy_path);
-            tree.deploy(cas.clone(), blobs_path, &deploy_path).await?;
+            tree.deploy(blobs_path, &deploy_path).await?;
         }
 
         Ok(())

@@ -3,7 +3,7 @@ use temp_dir::TempDir;
 use tokio::fs;
 use treeup::{
     Tree,
-    object::{Deployable, Object, cas::BasicFS},
+    object::{Object, cas::BasicFS},
 };
 
 #[tokio::test]
@@ -43,18 +43,13 @@ async fn basic() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(retrieved.files.len(), tree.files.len());
     assert_eq!(retrieved.symlinks.len(), tree.symlinks.len());
 
-    // Assert `Tree::get_dependencies` works
-    let deps = tree.get_dependencies();
-    assert_eq!(deps.objects.len(), 1);
-    assert_eq!(deps.blobs.len(), 2);
-
     // Assert `BlobRef::exists` works
     for file in &tree.files {
         assert!(file.blob.exists(&blobs_path).await?);
     }
 
     // Assert `Tree::get_subtrees` works
-    let subtrees = tree.get_subtrees(cas.clone(), &blobs_path).await?;
+    let subtrees = tree.get_subtrees(cas.clone()).await?;
     assert_eq!(subtrees.len(), 2);
 
     // Assert `Tree::deploy_recursive` works

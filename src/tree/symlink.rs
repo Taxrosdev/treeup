@@ -1,7 +1,5 @@
-use std::sync::Arc;
 use std::{io, path::Path};
 use tokio::fs;
-use treeup_core::object_cas::ObjectCAS;
 
 use crate::utils::permissions::Permissions;
 use crate::utils::stringlike::StringLike;
@@ -20,11 +18,7 @@ pub struct Symlink {
 }
 
 impl Symlink {
-    pub async fn create<C: ObjectCAS, P: AsRef<Path>>(
-        _cas: Arc<C>,
-        _blobs_path: &Path,
-        path: P,
-    ) -> io::Result<Self> {
+    pub async fn create<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let target = fs::read_link(&path)
             .await?
             .as_os_str()
@@ -46,12 +40,7 @@ impl Symlink {
         })
     }
 
-    pub async fn deploy<C: ObjectCAS, P: AsRef<Path>>(
-        &self,
-        _cas: Arc<C>,
-        _blobs_path: &Path,
-        deploy_parent_path: P,
-    ) -> io::Result<()> {
+    pub async fn deploy<P: AsRef<Path>>(&self, deploy_parent_path: P) -> io::Result<()> {
         let deploy_path = deploy_parent_path.as_ref().join(&self.name);
         fs::symlink(self.target.to_path_buf(), &deploy_path).await?;
 

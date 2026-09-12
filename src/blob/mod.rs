@@ -15,10 +15,7 @@ use tokio::{
     task,
 };
 use tokio_stream::StreamExt;
-use treeup_core::{
-    downloader::{DownloadKind, Downloader},
-    object_cas::ObjectCAS,
-};
+use treeup_core::downloader::{DownloadKind, Downloader};
 
 use crate::{
     blob::error::Error,
@@ -133,11 +130,7 @@ impl BlobRef {
         Ok(true)
     }
 
-    pub async fn create<C: ObjectCAS, P: AsRef<Path>>(
-        _cas: Arc<C>,
-        blobs_path: &Path,
-        path: P,
-    ) -> io::Result<Self> {
+    pub async fn create<P: AsRef<Path>>(blobs_path: &Path, path: P) -> io::Result<Self> {
         let hash_path = path.as_ref().to_owned();
         let hash = task::spawn_blocking(|| {
             let mut hasher = blake3::Hasher::new();
@@ -165,9 +158,8 @@ impl BlobRef {
         Ok(blob)
     }
 
-    pub async fn deploy<C: ObjectCAS, P: AsRef<Path> + Send>(
+    pub async fn deploy<P: AsRef<Path> + Send>(
         &self,
-        _cas: Arc<C>,
         blobs_path: &Path,
         deploy_path: P,
     ) -> io::Result<()> {
