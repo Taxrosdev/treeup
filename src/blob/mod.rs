@@ -144,8 +144,9 @@ impl BlobRef {
         };
         let blob_path = blob.local_path_with_parent(blobs_path).await?;
 
-        if !fs::try_exists(&blob_path).await? {
-            fs::hard_link(&path, blob_path).await?;
+        match fs::hard_link(&path, blob_path).await {
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => (),
+            e => e?,
         }
 
         Ok(blob)
