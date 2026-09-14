@@ -59,7 +59,7 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
             .context(DownloaderSnafu)?;
 
         let calc_hash = blake3::hash(data.as_bytes());
-        ensure!(hash != calc_hash.as_slice(), {
+        ensure!(hash == calc_hash.as_slice(), {
             HashSnafu {
                 expected: hex::encode(hash),
                 received: hex::encode(calc_hash.as_slice()),
