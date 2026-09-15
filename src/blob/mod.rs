@@ -73,6 +73,11 @@ impl BlobRef {
             hash: self.hash.clone(),
         })?;
 
+        // if exists, don't redownload.
+        if fs::try_exists(&path).await? {
+            return Ok(());
+        }
+
         let mut stream = downloader
             .fetch(&hash_raw, DownloadKind::Blob)
             .await
@@ -96,7 +101,10 @@ impl BlobRef {
             });
         }
 
-        atomic_rename(tmp_path, path).await?;
+        // If it was deleted by another thread, ignore.
+        if fs::try_exists(&tmp_path).await? {
+            atomic_rename(tmp_path, path).await?;
+        }
         Ok(())
     }
 
