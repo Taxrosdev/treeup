@@ -4,7 +4,7 @@ use tokio::fs;
 use crate::utils::permissions::Permissions;
 use crate::utils::stringlike::StringLike;
 
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Symlink {
     pub name: StringLike,
     pub target: StringLike,

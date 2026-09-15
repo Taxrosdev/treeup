@@ -24,7 +24,7 @@ use crate::{
 use error::{DownloaderSnafu, HashDecodeSnafu, IoSnafu, Result};
 
 /// A reference to a Blob, containing all information that may be required for deploying.
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct BlobRef {
     hash: String,
     pub size: u64,

@@ -2,7 +2,7 @@ use std::{io, path::Path};
 
 use crate::{blob::BlobRef, utils::stringlike::StringLike};
 
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct File {
     pub name: StringLike,
     pub blob: BlobRef,

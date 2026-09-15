@@ -16,7 +16,7 @@ const CREATE_FILES_CONCURRENCY: usize = 16;
 /// HACK: This should be a configurable option.
 const CREATE_SYMLINK_CONCURRENCY: usize = 4;
 
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Tree {
     pub subtrees: Vec<SubtreeRef>,
     pub files: Vec<File>,
@@ -165,7 +165,7 @@ impl Tree {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct SubtreeRef {
     pub hash: String,
     pub name: StringLike,

@@ -7,7 +7,9 @@ use std::{
 /// `String` when possible.
 ///
 /// Useful for cases involving serialization, which tend to be verbose with `OsString`
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    serde::Deserialize, serde::Serialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord,
+)]
 pub enum StringLike {
     Str(String),
     OsStr(OsString),
