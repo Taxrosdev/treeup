@@ -8,3 +8,5 @@ mod tree;
 pub use tree::*;
 
 mod utils;
+
+pub use treeup_core::*;
