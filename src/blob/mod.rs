@@ -3,6 +3,7 @@
 
 pub mod error;
 
+use futures_util::StreamExt;
 use snafu::ResultExt;
 use std::{
     io::{self, Write},
@@ -14,8 +15,7 @@ use tokio::{
     io::AsyncWriteExt,
     task,
 };
-use tokio_stream::StreamExt;
-use treeup_core::downloader::{DownloadKind, Downloader};
+use treeup_core::downloader::BlobDownloader;
 
 use crate::{
     blob::error::Error,
@@ -61,7 +61,7 @@ impl BlobRef {
     pub async fn download(
         &self,
         blobs_path: &Path,
-        downloader: Arc<impl Downloader>,
+        downloader: Arc<impl BlobDownloader>,
     ) -> Result<()> {
         let path = self
             .local_path_with_parent(blobs_path)
@@ -78,10 +78,12 @@ impl BlobRef {
             return Ok(());
         }
 
-        let mut stream = downloader
-            .fetch(&hash_raw, DownloadKind::Blob)
-            .await
-            .context(DownloaderSnafu)?;
+        let mut stream = Box::pin(
+            downloader
+                .fetch_blob(&hash_raw)
+                .await
+                .context(DownloaderSnafu)?,
+        );
 
         let mut hasher = blake3::Hasher::new();
         while let Some(chunk) = stream.next().await {

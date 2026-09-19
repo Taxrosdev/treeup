@@ -1,8 +1,7 @@
 use bytes::Bytes;
 use futures_core::Stream;
-use std::pin::Pin;
 use tokio_stream::StreamExt;
-use treeup_core::downloader::{DownloadError, DownloadKind, Downloader};
+use treeup_core::downloader::{BlobDownloader, DownloadError, Downloader, ObjectDownloader};
 
 /// Works for default `BasicFS`-like `ObjectCAS` Implementations
 #[derive(Clone)]
@@ -14,17 +13,18 @@ pub struct ReqwestDownloader {
 }
 
 impl Downloader for ReqwestDownloader {
-    async fn fetch(
+    fn remote(&self) -> String {
+        self.remote.clone()
+    }
+}
+
+impl BlobDownloader for ReqwestDownloader {
+    async fn fetch_blob(
         &self,
         hash: &[u8],
-        kind: DownloadKind,
-    ) -> Result<Pin<Box<impl Stream<Item = Result<Bytes, DownloadError>> + Send>>, DownloadError>
-    {
+    ) -> Result<impl Stream<Item = Result<Bytes, DownloadError>> + Send, DownloadError> {
         let hash_str = hex::encode(hash);
-        let base_url = match kind {
-            DownloadKind::Object => &self.objects_base_url,
-            DownloadKind::Blob => &self.blobs_base_url,
-        };
+        let base_url = &self.blobs_base_url;
 
         let res = self
             .client
@@ -43,9 +43,27 @@ impl Downloader for ReqwestDownloader {
             r.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
         })))
     }
+}
 
-    fn remote(&self) -> String {
-        self.remote.clone()
+impl ObjectDownloader for ReqwestDownloader {
+    async fn fetch_object(&self, hash: &[u8]) -> Result<Bytes, DownloadError> {
+        let hash_str = hex::encode(hash);
+        let base_url = &self.blobs_base_url;
+
+        let res = self
+            .client
+            .get(format!(
+                "{}/{}/{}",
+                base_url,
+                &hash_str[..2],
+                &hash_str[2..]
+            ))
+            .send()
+            .await?;
+
+        let res = res.error_for_status()?;
+
+        Ok(res.bytes().await?)
     }
 }
 

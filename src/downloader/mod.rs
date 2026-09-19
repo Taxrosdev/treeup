@@ -2,27 +2,22 @@ mod reqwest;
 pub use reqwest::*;
 mod progress;
 pub use progress::*;
+mod packfile;
+pub use packfile::*;
 
-use tokio_stream::StreamExt;
-use treeup_core::downloader::{DownloadError, DownloadKind, Downloader};
+use treeup_core::downloader::{DownloadError, ObjectDownloader};
 
 pub trait DownloaderExt {
     fn fetch_string(
         &self,
         hash: &[u8],
-        kind: DownloadKind,
     ) -> impl Future<Output = Result<String, DownloadError>> + Send;
 }
 
-impl<D: Downloader> DownloaderExt for D {
-    async fn fetch_string(&self, hash: &[u8], kind: DownloadKind) -> Result<String, DownloadError> {
-        let mut fetch = self.fetch(hash, kind).await?;
-        let mut data = Vec::new();
+impl<D: ObjectDownloader> DownloaderExt for D {
+    async fn fetch_string(&self, hash: &[u8]) -> Result<String, DownloadError> {
+        let data = self.fetch_object(hash).await?;
 
-        while let Some(chunk) = fetch.next().await {
-            data.extend_from_slice(&chunk?);
-        }
-
-        Ok(String::from_utf8(data)?)
+        Ok(String::from_utf8(data.to_vec())?)
     }
 }

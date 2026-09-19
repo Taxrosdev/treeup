@@ -3,10 +3,7 @@ pub mod error;
 
 use snafu::{ResultExt, ensure};
 use std::{io, sync::Arc};
-use treeup_core::{
-    downloader::{DownloadKind, Downloader},
-    object_cas::ObjectCAS,
-};
+use treeup_core::{downloader::ObjectDownloader, object_cas::ObjectCAS};
 
 use crate::{
     downloader::DownloaderExt,
@@ -26,7 +23,7 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
     }
 
     fn exists<C: ObjectCAS>(cas: &C, hash: &[u8]) -> impl Future<Output = io::Result<bool>> + Send {
-        async move { cas.exists(hash).await }
+        cas.exists(hash)
     }
 
     /// Tries to clone an `Object` from `old_repo` to `new_repo`.
@@ -50,11 +47,11 @@ pub trait Object: Sized + serde::de::DeserializeOwned + serde::Serialize {
 
     async fn download<C: ObjectCAS>(
         cas: &C,
-        downloader: Arc<impl Downloader>,
+        downloader: Arc<impl ObjectDownloader>,
         hash: &[u8],
     ) -> Result<()> {
         let data = downloader
-            .fetch_string(hash, DownloadKind::Object)
+            .fetch_string(hash)
             .await
             .context(DownloaderSnafu)?;
 

@@ -1,27 +1,26 @@
 use bytes::Bytes;
 use futures_core::Stream;
-use std::pin::Pin;
 
 pub type DownloadError = Box<dyn std::error::Error + Send + Sync>;
 
-/// Utility to Fetch from a remote `Repo`.
-pub trait Downloader: Send + Sync {
-    fn fetch(
-        &self,
-        hash: &[u8],
-        kind: DownloadKind,
-    ) -> impl Future<
-        Output = Result<
-            Pin<Box<impl Stream<Item = Result<Bytes, DownloadError>> + Send>>,
-            DownloadError,
-        >,
-    > + Send;
-
+pub trait Downloader {
     fn remote(&self) -> String;
 }
 
-#[derive(Copy, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum DownloadKind {
-    Blob,
-    Object,
+/// Utility to Fetch Blobs from remote `Repo`s.
+pub trait BlobDownloader: Send + Sync + Downloader {
+    fn fetch_blob(
+        &self,
+        hash: &[u8],
+    ) -> impl Future<
+        Output = Result<impl Stream<Item = Result<Bytes, DownloadError>> + Send, DownloadError>,
+    > + Send;
+}
+
+/// Utility to Fetch Objects from remote `Repo`s.
+pub trait ObjectDownloader: Send + Sync + Downloader {
+    fn fetch_object(
+        &self,
+        hash: &[u8],
+    ) -> impl Future<Output = Result<Bytes, DownloadError>> + Send;
 }
