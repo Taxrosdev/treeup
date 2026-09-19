@@ -13,7 +13,7 @@ use crate::utils::atomic::{atomic_rename, atomic_rename_blocking};
 const PACKFILE_MAGIC: [u8; 4] = *b"PACK";
 const MAX_PACKFILE_INSERT: usize = 2048;
 
-struct Packfile {
+pub struct Packfile {
     index: RwLock<HashMap<Vec<u8>, PackfileIndex>>,
     index_path: PathBuf,
     data: RwLock<MmapMut>,
@@ -42,16 +42,15 @@ impl Drop for Packfile {
 }
 
 impl Packfile {
-    pub async fn init(path: &Path) -> io::Result<Self> {
-        let index_path = path.join("packfile.idx");
+    pub async fn init(index_path: PathBuf, data_path: &Path) -> io::Result<Self> {
         let data_file = OpenOptions::new()
             .create(true)
             .read(true)
             .append(true)
-            .open(path.join("packfile"))?;
+            .open(data_path)?;
 
         Ok(Self {
-            index: RwLock::new(Self::load_index(&index_path).await?),
+            index: RwLock::new(PackfileIndex::read_indexes(&index_path).await?),
             index_path,
             data: RwLock::new(Self::load_data(&data_file)?),
             data_file,
@@ -61,30 +60,42 @@ impl Packfile {
     fn load_data(file: &File) -> io::Result<MmapMut> {
         unsafe { MmapMut::map_mut(file) }
     }
+}
 
-    async fn load_index(path: &Path) -> io::Result<HashMap<Vec<u8>, PackfileIndex>> {
-        if !fs::try_exists(path).await? {
+pub struct PackfileIndex {
+    pub(crate) start: u64,
+    pub(crate) len: u64,
+}
+
+impl PackfileIndex {
+    pub async fn read_indexes(path: &Path) -> io::Result<HashMap<Vec<u8>, PackfileIndex>> {
+        if !fs::try_exists(&path).await? {
             return Ok(HashMap::new());
         }
 
         let file = fs::read(path).await?;
-        let file = &mut file.iter().copied();
-        let magic: Vec<u8> = file.take(4).collect();
+
+        Self::parse_indexes(&file)
+    }
+
+    pub fn parse_indexes(raw: &[u8]) -> io::Result<HashMap<Vec<u8>, PackfileIndex>> {
+        let raw = &mut raw.iter().copied();
+        let magic: Vec<u8> = raw.take(4).collect();
         if magic != PACKFILE_MAGIC {
             return Err(io::ErrorKind::InvalidData.into());
         }
 
         let mut index = HashMap::new();
 
-        while let Some(hash_length) = file.next() {
-            let hash: Vec<_> = file.take(hash_length as usize).collect();
-            let start_raw: Vec<_> = file.take(8).collect();
+        while let Some(hash_length) = raw.next() {
+            let hash: Vec<_> = raw.take(hash_length as usize).collect();
+            let start_raw: Vec<_> = raw.take(8).collect();
             let start = u64::from_le_bytes(
                 start_raw
                     .try_into()
                     .map_err(|_| io::ErrorKind::InvalidData)?,
             );
-            let len_raw: Vec<_> = file.take(8).collect();
+            let len_raw: Vec<_> = raw.take(8).collect();
             let len =
                 u64::from_le_bytes(len_raw.try_into().map_err(|_| io::ErrorKind::InvalidData)?);
 
@@ -93,11 +104,6 @@ impl Packfile {
 
         Ok(index)
     }
-}
-
-struct PackfileIndex {
-    start: u64,
-    len: u64,
 }
 
 /// Requires Packfile compatible Downloaders
@@ -115,7 +121,10 @@ impl PackfileCAS {
             let path = root.join(hex::encode([i]));
             tokio::fs::create_dir_all(&path).await?;
 
-            packfiles.insert(i, Packfile::init(&path).await?);
+            packfiles.insert(
+                i,
+                Packfile::init(path.join("packfile.idx"), &path.join("packfile")).await?,
+            );
         }
 
         Ok(Self { root, packfiles })
