@@ -47,6 +47,10 @@ where
     assert_eq!(cas.get(b"hello").await?, "world");
     assert!(cas.exists(b"hello").await?);
 
+    cas.put(b"hello2", "world2").await?;
+    assert_eq!(cas.get(b"hello2").await?, "world2");
+    assert!(cas.exists(b"hello2").await?);
+
     // Recreate CAS
     drop(cas);
     let cas = create_cas().await?;
@@ -54,6 +58,8 @@ where
     // Assert CAS data persisted
     assert_eq!(cas.get(b"hello").await?, "world");
     assert!(cas.exists(b"hello").await?);
+    assert_eq!(cas.get(b"hello2").await?, "world2");
+    assert!(cas.exists(b"hello2").await?);
 
     // Assert deletion works
     cas.delete(b"hello").await?;

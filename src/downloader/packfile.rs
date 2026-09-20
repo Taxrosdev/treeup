@@ -17,7 +17,7 @@ impl PackfileDownloader {
     #[must_use]
     pub fn from_downloader(downloader: Arc<ReqwestDownloader>) -> Self {
         let mut index_cache = HashMap::new();
-        for i in 0..u8::MAX {
+        for i in 0..=u8::MAX {
             index_cache.insert(i, Mutex::new(None));
         }
 
@@ -76,7 +76,7 @@ impl ObjectDownloader for PackfileDownloader {
                     ))
                     .header(
                         RANGE,
-                        format!("bytes={}-{}", entry.start, entry.start + entry.len),
+                        format!("bytes={}-{}", entry.start, entry.start + entry.len - 1),
                     )
                     .send()
                     .await?

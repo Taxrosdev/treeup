@@ -14,9 +14,9 @@ const PACKFILE_MAGIC: [u8; 4] = *b"PACK";
 const MAX_PACKFILE_INSERT: usize = 2048;
 
 pub struct Packfile {
-    index: RwLock<HashMap<Vec<u8>, PackfileIndex>>,
+    index: HashMap<Vec<u8>, PackfileIndex>,
     index_path: PathBuf,
-    data: RwLock<MmapMut>,
+    data: MmapMut,
     data_file: File,
 }
 
@@ -27,7 +27,7 @@ impl Drop for Packfile {
         data.extend_from_slice(&PACKFILE_MAGIC);
 
         // It should NEVER be read whilst `Drop` is being called, hence, this is entirely safe.
-        for (hash, index) in self.index.try_read().unwrap().iter() {
+        for (hash, index) in &self.index {
             data.push(hash.len().try_into().expect("Hash is above 256 bytes"));
             data.extend_from_slice(hash);
 
@@ -50,9 +50,9 @@ impl Packfile {
             .open(data_path)?;
 
         Ok(Self {
-            index: RwLock::new(PackfileIndex::read_indexes(&index_path).await?),
+            index: PackfileIndex::read_indexes(&index_path).await?,
             index_path,
-            data: RwLock::new(Self::load_data(&data_file)?),
+            data: Self::load_data(&data_file)?,
             data_file,
         })
     }
@@ -109,7 +109,7 @@ impl PackfileIndex {
 /// Requires Packfile compatible Downloaders
 pub struct PackfileCAS {
     root: PathBuf,
-    packfiles: HashMap<u8, Packfile>,
+    packfiles: HashMap<u8, RwLock<Packfile>>,
 }
 
 impl PackfileCAS {
@@ -123,7 +123,9 @@ impl PackfileCAS {
 
             packfiles.insert(
                 i,
-                Packfile::init(path.join("packfile.idx"), &path.join("packfile")).await?,
+                RwLock::new(
+                    Packfile::init(path.join("packfile.idx"), &path.join("packfile")).await?,
+                ),
             );
         }
 
@@ -139,12 +141,12 @@ impl PackfileCAS {
 
 impl ObjectCAS for PackfileCAS {
     async fn get(&self, hash: &[u8]) -> io::Result<String> {
-        let packfile = &self.packfiles[&hash[0]];
-        match packfile.index.read().await.get(&hash[1..]) {
+        let packfile = &self.packfiles[&hash[0]].read().await;
+        match packfile.index.get(&hash[1..]) {
             Some(index) => {
                 let start = index.start as usize;
                 let end = (index.start + index.len) as usize;
-                let raw = &packfile.data.read().await[start..end];
+                let raw = &packfile.data[start..end];
                 String::from_utf8(raw.to_vec())
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
             }
@@ -153,8 +155,8 @@ impl ObjectCAS for PackfileCAS {
     }
 
     async fn exists(&self, hash: &[u8]) -> io::Result<bool> {
-        let packfile = &self.packfiles[&hash[0]];
-        match packfile.index.read().await.get(&hash[1..]) {
+        let packfile = &self.packfiles[&hash[0]].read().await;
+        match packfile.index.get(&hash[1..]) {
             Some(_) => Ok(true),
             None => fs::try_exists(self.path(hash)).await,
         }
@@ -162,27 +164,25 @@ impl ObjectCAS for PackfileCAS {
 
     async fn put(&self, hash: &[u8], data: &str) -> io::Result<()> {
         if data.len() < MAX_PACKFILE_INSERT {
-            let packfile = &self.packfiles[&hash[0]];
-            let mut packfile_data = packfile.data.write().await;
-            let mut index = packfile.index.write().await;
+            let mut packfile = self.packfiles[&hash[0]].write().await;
 
-            if index.contains_key(&hash[1..]) {
+            if packfile.index.contains_key(&hash[1..]) {
                 return Ok(());
             }
 
-            let start = packfile_data.len();
-            let end = packfile_data.len() + data.len();
+            let start = packfile.data.len();
+            let end = packfile.data.len() + data.len();
 
             packfile.data_file.set_len(end as u64)?;
             cfg_select!(
-                target_os = "linux" => unsafe { packfile_data.remap(end, RemapOptions::new().may_move(true))? },
+                target_os = "linux" => unsafe { packfile.data.remap(end, RemapOptions::new().may_move(true))? },
                 _ => {
                     *packfile_data = Packfile::load_data(&packfile.data_file)?;
                 }
             );
-            packfile_data[start..end].copy_from_slice(data.as_bytes());
+            packfile.data[start..end].copy_from_slice(data.as_bytes());
 
-            index.insert(
+            packfile.index.insert(
                 hash[1..].to_vec(),
                 PackfileIndex {
                     start: start as u64,
@@ -209,9 +209,8 @@ impl ObjectCAS for PackfileCAS {
             fs::remove_file(path).await?;
         }
 
-        let packfile = &self.packfiles[&hash[0]];
-        let mut index = packfile.index.write().await;
-        index.remove(&hash[1..]);
+        let mut packfile = self.packfiles[&hash[0]].write().await;
+        packfile.index.remove(&hash[1..]);
 
         Ok(())
     }

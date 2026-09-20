@@ -48,7 +48,7 @@ impl BlobDownloader for ReqwestDownloader {
 impl ObjectDownloader for ReqwestDownloader {
     async fn fetch_object(&self, hash: &[u8]) -> Result<Bytes, DownloadError> {
         let hash_str = hex::encode(hash);
-        let base_url = &self.blobs_base_url;
+        let base_url = &self.objects_base_url;
 
         let res = self
             .client
