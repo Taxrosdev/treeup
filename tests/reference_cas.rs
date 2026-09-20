@@ -18,7 +18,7 @@ async fn cas_basicfs() -> Result<()> {
 #[tokio::test]
 async fn cas_packfile() -> Result<()> {
     let root = TempDir::new()?;
-    let create_cas = || PackfileCAS::create(root.path().into());
+    let create_cas = || PackfileCAS::create(root.path().into(), 5);
     test_cas(create_cas).await
 }
 
@@ -32,7 +32,7 @@ async fn cas_basicfs_no_dir() -> Result<()> {
 #[tokio::test]
 async fn cas_packfile_no_dir() -> Result<()> {
     let root = TempDir::new()?;
-    let create_cas = || PackfileCAS::create(root.child("subdir"));
+    let create_cas = || PackfileCAS::create(root.child("subdir"), 5);
     test_cas(create_cas).await
 }
 

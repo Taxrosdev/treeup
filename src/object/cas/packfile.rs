@@ -11,7 +11,6 @@ use treeup_core::object_cas::ObjectCAS;
 use crate::utils::atomic::{atomic_rename, atomic_rename_blocking};
 
 const PACKFILE_MAGIC: [u8; 4] = *b"PACK";
-const MAX_PACKFILE_INSERT: usize = 2048;
 
 pub struct Packfile {
     index: HashMap<Vec<u8>, PackfileIndex>,
@@ -110,10 +109,11 @@ impl PackfileIndex {
 pub struct PackfileCAS {
     root: PathBuf,
     packfiles: HashMap<u8, RwLock<Packfile>>,
+    max_insert_size: usize,
 }
 
 impl PackfileCAS {
-    pub async fn create(root: PathBuf) -> io::Result<Self> {
+    pub async fn create(root: PathBuf, max_insert_size: usize) -> io::Result<Self> {
         // Precreate all directories and packfiles
         let mut packfiles = HashMap::new();
         // TODO: This could be concurrent
@@ -129,7 +129,11 @@ impl PackfileCAS {
             );
         }
 
-        Ok(Self { root, packfiles })
+        Ok(Self {
+            root,
+            packfiles,
+            max_insert_size,
+        })
     }
 
     fn path(&self, hash: &[u8]) -> PathBuf {
@@ -163,7 +167,7 @@ impl ObjectCAS for PackfileCAS {
     }
 
     async fn put(&self, hash: &[u8], data: &str) -> io::Result<()> {
-        if data.len() < MAX_PACKFILE_INSERT {
+        if data.len() < self.max_insert_size {
             let mut packfile = self.packfiles[&hash[0]].write().await;
 
             if packfile.index.contains_key(&hash[1..]) {
@@ -224,7 +228,7 @@ mod tests {
     #[tokio::test]
     async fn basic() {
         let root = TempDir::new().unwrap();
-        let cas = PackfileCAS::create(root.path().to_path_buf())
+        let cas = PackfileCAS::create(root.path().to_path_buf(), 2048)
             .await
             .unwrap();
 
