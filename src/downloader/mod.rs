@@ -5,7 +5,7 @@ pub use progress::*;
 mod packfile;
 pub use packfile::*;
 
-use treeup_core::downloader::{DownloadError, ObjectDownloader};
+pub use treeup_core::downloader::*;
 
 pub trait DownloaderExt {
     fn fetch_string(

@@ -9,4 +9,4 @@ pub use tree::*;
 
 mod utils;
 
-pub use treeup_core::*;
+pub use treeup_core::object_cas;
