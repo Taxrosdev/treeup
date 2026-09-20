@@ -17,10 +17,15 @@ pub struct Packfile {
     index_path: PathBuf,
     data: MmapMut,
     data_file: File,
+    mutated: bool,
 }
 
 impl Drop for Packfile {
     fn drop(&mut self) {
+        if !self.mutated {
+            return;
+        };
+
         let tmp_file = self.index_path.with_extension("index.tmp");
         let mut data = Vec::new();
         data.extend_from_slice(&PACKFILE_MAGIC);
@@ -53,6 +58,7 @@ impl Packfile {
             index_path,
             data: Self::load_data(&data_file)?,
             data_file,
+            mutated: false,
         })
     }
 
@@ -194,6 +200,8 @@ impl ObjectCAS for PackfileCAS {
                 },
             );
 
+            packfile.mutated = true;
+
             Ok(())
         } else {
             let path = self.path(hash);
@@ -215,6 +223,7 @@ impl ObjectCAS for PackfileCAS {
 
         let mut packfile = self.packfiles[&hash[0]].write().await;
         packfile.index.remove(&hash[1..]);
+        packfile.mutated = true;
 
         Ok(())
     }
