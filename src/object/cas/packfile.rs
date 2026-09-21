@@ -114,30 +114,19 @@ impl PackfileIndex {
 /// Requires Packfile compatible Downloaders
 pub struct PackfileCAS {
     root: PathBuf,
-    packfiles: HashMap<u8, RwLock<Packfile>>,
+    packfile: RwLock<Packfile>,
     max_insert_size: usize,
 }
 
 impl PackfileCAS {
     pub async fn create(root: PathBuf, max_insert_size: usize) -> io::Result<Self> {
-        // Precreate all directories and packfiles
-        let mut packfiles = HashMap::new();
-        // TODO: This could be concurrent
-        for i in u8::MIN..=u8::MAX {
-            let path = root.join(hex::encode([i]));
-            tokio::fs::create_dir_all(&path).await?;
-
-            packfiles.insert(
-                i,
-                RwLock::new(
-                    Packfile::init(path.join("packfile.idx"), &path.join("packfile")).await?,
-                ),
-            );
-        }
+        tokio::fs::create_dir_all(&root).await?;
+        let packfile =
+            RwLock::new(Packfile::init(root.join("packfile.idx"), &root.join("packfile")).await?);
 
         Ok(Self {
             root,
-            packfiles,
+            packfile,
             max_insert_size,
         })
     }
@@ -151,7 +140,7 @@ impl PackfileCAS {
 
 impl ObjectCAS for PackfileCAS {
     async fn get(&self, hash: &[u8]) -> io::Result<String> {
-        let packfile = &self.packfiles[&hash[0]].read().await;
+        let packfile = &self.packfile.read().await;
         match packfile.index.get(&hash[1..]) {
             Some(index) => {
                 let start = index.start as usize;
@@ -165,7 +154,7 @@ impl ObjectCAS for PackfileCAS {
     }
 
     async fn exists(&self, hash: &[u8]) -> io::Result<bool> {
-        let packfile = &self.packfiles[&hash[0]].read().await;
+        let packfile = &self.packfile.read().await;
         match packfile.index.get(&hash[1..]) {
             Some(_) => Ok(true),
             None => fs::try_exists(self.path(hash)).await,
@@ -174,7 +163,7 @@ impl ObjectCAS for PackfileCAS {
 
     async fn put(&self, hash: &[u8], data: &str) -> io::Result<()> {
         if data.len() < self.max_insert_size {
-            let mut packfile = self.packfiles[&hash[0]].write().await;
+            let mut packfile = self.packfile.write().await;
 
             if packfile.index.contains_key(&hash[1..]) {
                 return Ok(());
@@ -221,7 +210,7 @@ impl ObjectCAS for PackfileCAS {
             fs::remove_file(path).await?;
         }
 
-        let mut packfile = self.packfiles[&hash[0]].write().await;
+        let mut packfile = self.packfile.write().await;
         packfile.index.remove(&hash[1..]);
         packfile.mutated = true;
 
