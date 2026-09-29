@@ -120,7 +120,10 @@ pub struct PackfileCAS {
 
 impl PackfileCAS {
     pub async fn create(root: PathBuf, max_insert_size: usize) -> io::Result<Self> {
-        tokio::fs::create_dir_all(&root).await?;
+        for i in 0..=u8::MAX {
+            tokio::fs::create_dir_all(root.join(hex::encode([i]))).await?;
+        }
+
         let packfile =
             RwLock::new(Packfile::init(root.join("packfile.idx"), &root.join("packfile")).await?);
 
@@ -141,7 +144,7 @@ impl PackfileCAS {
 impl ObjectCAS for PackfileCAS {
     async fn get(&self, hash: &[u8]) -> io::Result<String> {
         let packfile = &self.packfile.read().await;
-        match packfile.index.get(&hash[1..]) {
+        match packfile.index.get(hash) {
             Some(index) => {
                 let start = index.start as usize;
                 let end = (index.start + index.len) as usize;
@@ -155,7 +158,7 @@ impl ObjectCAS for PackfileCAS {
 
     async fn exists(&self, hash: &[u8]) -> io::Result<bool> {
         let packfile = &self.packfile.read().await;
-        match packfile.index.get(&hash[1..]) {
+        match packfile.index.get(hash) {
             Some(_) => Ok(true),
             None => fs::try_exists(self.path(hash)).await,
         }
@@ -165,7 +168,7 @@ impl ObjectCAS for PackfileCAS {
         if data.len() < self.max_insert_size {
             let mut packfile = self.packfile.write().await;
 
-            if packfile.index.contains_key(&hash[1..]) {
+            if packfile.index.contains_key(hash) {
                 return Ok(());
             }
 
@@ -176,13 +179,13 @@ impl ObjectCAS for PackfileCAS {
             cfg_select!(
                 target_os = "linux" => unsafe { packfile.data.remap(end, RemapOptions::new().may_move(true))? },
                 _ => {
-                    *packfile_data = Packfile::load_data(&packfile.data_file)?;
+                    *packfile.data = Packfile::load_data(&packfile.data_file)?;
                 }
             );
             packfile.data[start..end].copy_from_slice(data.as_bytes());
 
             packfile.index.insert(
-                hash[1..].to_vec(),
+                hash.to_vec(),
                 PackfileIndex {
                     start: start as u64,
                     len: data.len() as u64,
@@ -211,7 +214,7 @@ impl ObjectCAS for PackfileCAS {
         }
 
         let mut packfile = self.packfile.write().await;
-        packfile.index.remove(&hash[1..]);
+        packfile.index.remove(hash);
         packfile.mutated = true;
 
         Ok(())
