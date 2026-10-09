@@ -176,12 +176,18 @@ impl ObjectCAS for PackfileCAS {
             let end = packfile.data.len() + data.len();
 
             packfile.data_file.set_len(end as u64)?;
-            cfg_select!(
-                target_os = "linux" => unsafe { packfile.data.remap(end, RemapOptions::new().may_move(true))? },
-                _ => {
-                    *packfile.data = Packfile::load_data(&packfile.data_file)?;
-                }
-            );
+
+            // Remap/Reopen packfile for new length to take affect
+            if cfg!(target_os = "linux") {
+                unsafe {
+                    packfile
+                        .data
+                        .remap(end, RemapOptions::new().may_move(true))?
+                };
+            } else {
+                packfile.data = Packfile::load_data(&packfile.data_file)?;
+            }
+
             packfile.data[start..end].copy_from_slice(data.as_bytes());
 
             packfile.index.insert(

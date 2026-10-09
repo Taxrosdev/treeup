@@ -18,9 +18,9 @@ edition.workspace = true
 blake3 = { version = "^1.8", features = ["rayon", "mmap"] }
 bytes = "^1.12"
 futures-core = "0.3"
-futures-util = "0.3.34"
-hex = "0.4.3"
-memmap2 = "0.9.11"
+futures-util = "0.3"
+hex = "0.4"
+memmap2 = "0.9"
 nix = { version = "^0.31", features = ["fs"] }
 reqwest = { version = "^0.13", features = ["stream"] }
 serde = { version = "1", features = ["derive"] }
