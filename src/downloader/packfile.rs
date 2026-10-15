@@ -8,7 +8,7 @@ use crate::{downloader::ReqwestDownloader, object::cas::PackfileIndex};
 
 pub struct PackfileDownloader {
     downloader: Arc<ReqwestDownloader>,
-    index_cache: HashMap<u8, Mutex<Option<Arc<IndexCacheEntry>>>>,
+    index_cache: Mutex<Option<Arc<IndexCacheEntry>>>,
 }
 
 type IndexCacheEntry = HashMap<Vec<u8>, PackfileIndex>;
@@ -16,10 +16,7 @@ type IndexCacheEntry = HashMap<Vec<u8>, PackfileIndex>;
 impl PackfileDownloader {
     #[must_use]
     pub fn from_downloader(downloader: Arc<ReqwestDownloader>) -> Self {
-        let mut index_cache = HashMap::new();
-        for i in 0..=u8::MAX {
-            index_cache.insert(i, Mutex::new(None));
-        }
+        let index_cache = Mutex::new(None);
 
         Self {
             downloader,
@@ -27,21 +24,18 @@ impl PackfileDownloader {
         }
     }
 
-    pub async fn get_index(&self, hash_prefix: u8) -> Result<Arc<IndexCacheEntry>, DownloadError> {
-        let mut cache = self.index_cache.get(&hash_prefix).unwrap().lock().await;
+    pub async fn get_index(&self) -> Result<Arc<IndexCacheEntry>, DownloadError> {
+        let mut cache = self.index_cache.lock().await;
         if let Some(index) = &*cache {
             return Ok(index.clone());
-        };
+        }
 
-        let hash_str = hex::encode([hash_prefix]);
         let res = self
             .downloader
             .client
             .get(format!(
-                "{}/{}/{}",
-                self.downloader.objects_base_url,
-                &hash_str[..2],
-                "packfile.idx"
+                "{}/{}",
+                self.downloader.objects_base_url, "packfile.idx"
             ))
             .send()
             .await?;
@@ -60,20 +54,15 @@ impl Downloader for PackfileDownloader {
 
 impl ObjectDownloader for PackfileDownloader {
     async fn fetch_object(&self, hash: &[u8]) -> Result<Bytes, DownloadError> {
-        let hash_str = hex::encode(hash);
-        let index = self.get_index(hash[0]).await?;
+        let index = self.get_index().await?;
 
-        match index.get(&hash[1..]) {
+        match index.get(hash) {
             None => Ok(self.downloader.fetch_object(hash).await?),
             Some(entry) => {
                 let res = self
                     .downloader
                     .client
-                    .get(format!(
-                        "{}/{}/packfile",
-                        self.downloader.objects_base_url,
-                        &hash_str[..2]
-                    ))
+                    .get(format!("{}/packfile", self.downloader.objects_base_url))
                     .header(
                         RANGE,
                         format!("bytes={}-{}", entry.start, entry.start + entry.len - 1),
