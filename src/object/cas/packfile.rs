@@ -24,7 +24,7 @@ impl Drop for Packfile {
     fn drop(&mut self) {
         if !self.mutated {
             return;
-        };
+        }
 
         let tmp_file = self.index_path.with_extension("index.tmp");
         let mut data = Vec::new();
@@ -182,7 +182,7 @@ impl ObjectCAS for PackfileCAS {
                 unsafe {
                     packfile
                         .data
-                        .remap(end, RemapOptions::new().may_move(true))?
+                        .remap(end, RemapOptions::new().may_move(true))?;
                 };
             } else {
                 packfile.data = Packfile::load_data(&packfile.data_file)?;
